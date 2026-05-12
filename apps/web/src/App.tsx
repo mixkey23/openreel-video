@@ -8,6 +8,7 @@ import { useProjectStore } from "./stores/project-store";
 import { useRouter } from "./hooks/use-router";
 import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { useKieAIPoller } from "./hooks/useKieAIPoller";
+import { useFramesmithInit } from "./hooks/use-framesmith-init";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { ToolcraftText as Text } from "@openreel/ui";
 
@@ -58,6 +59,9 @@ function App() {
     ["welcome", "templates", "recent"].includes(route) && !skipWelcomeScreen;
   const isSharePage = route === "share" && params.shareId;
 
+  // Framesmith integration: auto-import clips when embedded via iframe
+  useFramesmithInit();
+
   useEffect(() => {
     if (activeModal === "scriptView") setHasOpenedScriptView(true);
   }, [activeModal]);
@@ -65,7 +69,11 @@ function App() {
   useEffect(() => {
     if (hasHandledInitialRoute.current || isChecking || showDialog || isRecovering) return;
 
-    if (route === "new") {
+    if (route === "framesmith") {
+      // Opened from Framesmith — skip welcome screen, go straight to editor
+      hasHandledInitialRoute.current = true;
+      navigate("editor");
+    } else if (route === "new") {
       hasHandledInitialRoute.current = true;
 
       let projectName = "New Project";
