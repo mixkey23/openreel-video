@@ -18,6 +18,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/util", "@ffmpeg/core", "@ffmpeg/core-mt"],
   },
+  base: "/openreel/",
   build: {
     target: "esnext",
     rollupOptions: {

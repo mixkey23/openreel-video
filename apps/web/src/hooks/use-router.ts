@@ -6,7 +6,8 @@ export type AppRoute =
   | "new"
   | "templates"
   | "recent"
-  | "share";
+  | "share"
+  | "framesmith";
 
 export interface RouteParams {
   dimensions?: string;
@@ -44,6 +45,7 @@ function parseHash(hash: string): RouterState {
     "templates",
     "recent",
     "share",
+    "framesmith",
   ];
 
   if (route === "share" && pathParts[1]) {
