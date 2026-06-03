@@ -93,8 +93,13 @@ export function useFramesmithInit() {
       // Map to track audio imports (beat_id -> mediaId)
       const audioImports: Record<string, string> = {};
 
-      // Import all video clips
+      // Import all video clips (skip if URL not available — video may be pending)
       for (const clip of config.clips) {
+        if (!clip.url) {
+          console.log(`[Framesmith] Skipping video ${clip.id} — URL not available (video pending)`);
+          continue;
+        }
+
         try {
           console.log(`[Framesmith] Fetching video ${clip.id}...`);
           const response = await fetch(clip.url);
