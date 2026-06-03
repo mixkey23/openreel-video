@@ -12,6 +12,7 @@ import { useRouter } from "./hooks/use-router";
 import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { useKieAIPoller } from "./hooks/useKieAIPoller";
 import { useFramesmithInit } from "./hooks/use-framesmith-init";
+import { useFramesmithBridge } from "./hooks/use-framesmith-bridge";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { TooltipProvider } from "@openreel/ui";
 
@@ -47,8 +48,9 @@ function App() {
 
   useKieAIPoller();
 
-  // Framesmith integration: auto-import clips when embedded via iframe
+  // Framesmith integration: auto-import clips + bidirectional timeline sync
   useFramesmithInit();
+  useFramesmithBridge();
 
   useEffect(() => {
     if (hasHandledInitialRoute.current) return;
