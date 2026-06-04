@@ -13,6 +13,8 @@ export interface ServiceConfig {
 /**
  * Registry of supported external services that require API keys.
  * Add new services here as the app integrates more third-party APIs.
+ *
+ * Local providers (ollama, whisperx) do NOT require API keys — configuration only.
  */
 export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
   {
@@ -45,12 +47,25 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     description: "AI aggregator for image generation, vectors, and creative assets",
     docsUrl: "https://www.freepik.com/api",
   },
+  {
+    id: "ollama",
+    label: "Ollama",
+    description: "Local LLM via Ollama (no API key required)",
+    docsUrl: "https://ollama.ai",
+  },
+  {
+    id: "whisperx",
+    label: "WhisperX",
+    description: "Local transcription with word-level timestamps (no API key required)",
+    docsUrl: "https://github.com/m-bain/whisperX",
+  },
 ] as const;
 
 export type TtsProvider = "elevenlabs";
 export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
-export type SettingsTab = "general" | "api-keys" | "mcp";
+export type TranscriptionProvider = "whisperx";
+export type SettingsTab = "general" | "api-keys" | "mcp" | "local-providers";
 
 function isLlmProvider(value: unknown): value is LlmProvider {
   return value === "openai-compatible" || value === "anthropic-compatible";
@@ -68,6 +83,7 @@ export interface SettingsState {
   /** User-defined compatible endpoint and model for the agent chat. */
   llmBaseUrl: string;
   llmModel: string;
+  defaultTranscriptionProvider: TranscriptionProvider;
   defaultAggregator: AggregatorProvider;
   elevenLabsModel: string;
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
@@ -81,6 +97,16 @@ export interface SettingsState {
   agentAutoConfirm: boolean;
   /** Agent chat: plan tools without applying mutations. */
   agentDryRun: boolean;
+  // Local provider configuration (Ollama, WhisperX)
+  ollamaHost: string;
+  ollamaModel: string;
+  whisperxBaseUrl: string;
+  whisperxModel: "large-v3" | "large-v3-turbo" | "medium" | "small";
+  whisperxLanguage: string;
+  whisperxEnableVad: boolean;
+  whisperxMinSilenceMs: number;
+  whisperxVadThreshold: number;
+  whisperxPaddingMs: number;
 
   // Session-scoped API caches (cleared on session lock, not persisted)
   cachedElevenLabsVoices: Array<{ voice_id: string; name: string; category: string; labels: Record<string, string>; preview_url?: string }> | null;
@@ -101,6 +127,7 @@ export interface SettingsState {
   setMcpAutoAllowTrustedLocal: (enabled: boolean) => void;
   setAgentAutoConfirm: (enabled: boolean) => void;
   setAgentDryRun: (enabled: boolean) => void;
+  setDefaultTranscriptionProvider: (provider: TranscriptionProvider) => void;
   setDefaultAggregator: (provider: AggregatorProvider) => void;
   setElevenLabsModel: (model: string) => void;
   addFavoriteVoice: (voice: { voiceId: string; name: string; previewUrl?: string }) => void;
@@ -112,6 +139,15 @@ export interface SettingsState {
   setCachedElevenLabsVoices: (voices: SettingsState["cachedElevenLabsVoices"]) => void;
   setCachedElevenLabsModels: (models: SettingsState["cachedElevenLabsModels"]) => void;
   clearApiCaches: () => void;
+  setOllamaHost: (host: string) => void;
+  setOllamaModel: (model: string) => void;
+  setWhisperxBaseUrl: (url: string) => void;
+  setWhisperxModel: (model: SettingsState["whisperxModel"]) => void;
+  setWhisperxLanguage: (lang: string) => void;
+  setWhisperxEnableVad: (enabled: boolean) => void;
+  setWhisperxMinSilenceMs: (ms: number) => void;
+  setWhisperxVadThreshold: (threshold: number) => void;
+  setWhisperxPaddingMs: (ms: number) => void;
   openSettings: (tab?: SettingsTab) => void;
   closeSettings: () => void;
 }
@@ -128,6 +164,7 @@ export const useSettingsStore = create<SettingsState>()(
         defaultLlmProvider: null,
         llmBaseUrl: "",
         llmModel: "",
+        defaultTranscriptionProvider: "whisperx" as TranscriptionProvider,
         defaultAggregator: "kie-ai" as AggregatorProvider,
         elevenLabsModel: "eleven_v3",
         favoriteVoices: [],
@@ -137,6 +174,16 @@ export const useSettingsStore = create<SettingsState>()(
         mcpAutoAllowTrustedLocal: true,
         agentAutoConfirm: false,
         agentDryRun: false,
+        // Local providers
+        ollamaHost: "http://localhost:11434",
+        ollamaModel: "qwen2.5:14b-instruct",
+        whisperxBaseUrl: "http://localhost:8000",
+        whisperxModel: "large-v3" as const,
+        whisperxLanguage: "en",
+        whisperxEnableVad: true,
+        whisperxMinSilenceMs: 300,
+        whisperxVadThreshold: 0.5,
+        whisperxPaddingMs: 100,
 
         cachedElevenLabsVoices: null,
         cachedElevenLabsModels: null,
@@ -167,6 +214,8 @@ export const useSettingsStore = create<SettingsState>()(
         setAgentAutoConfirm: (enabled: boolean) => set({ agentAutoConfirm: enabled }),
 
         setAgentDryRun: (enabled: boolean) => set({ agentDryRun: enabled }),
+        setDefaultTranscriptionProvider: (provider: TranscriptionProvider) =>
+          set({ defaultTranscriptionProvider: provider }),
 
         setDefaultAggregator: (provider: AggregatorProvider) =>
           set({ defaultAggregator: provider }),
@@ -221,6 +270,29 @@ export const useSettingsStore = create<SettingsState>()(
         clearApiCaches: () =>
           set({ cachedElevenLabsVoices: null, cachedElevenLabsModels: null }),
 
+        setOllamaHost: (host: string) => set({ ollamaHost: host }),
+
+        setOllamaModel: (model: string) => set({ ollamaModel: model }),
+
+        setWhisperxBaseUrl: (url: string) => set({ whisperxBaseUrl: url }),
+
+        setWhisperxModel: (model: SettingsState["whisperxModel"]) =>
+          set({ whisperxModel: model }),
+
+        setWhisperxLanguage: (lang: string) => set({ whisperxLanguage: lang }),
+
+        setWhisperxEnableVad: (enabled: boolean) =>
+          set({ whisperxEnableVad: enabled }),
+
+        setWhisperxMinSilenceMs: (ms: number) =>
+          set({ whisperxMinSilenceMs: Math.max(100, ms) }),
+
+        setWhisperxVadThreshold: (threshold: number) =>
+          set({ whisperxVadThreshold: Math.max(0, Math.min(1, threshold)) }),
+
+        setWhisperxPaddingMs: (ms: number) =>
+          set({ whisperxPaddingMs: Math.max(0, ms) }),
+
         openSettings: (tab?: SettingsTab) =>
           set({
             settingsOpen: true,
@@ -272,6 +344,7 @@ export const useSettingsStore = create<SettingsState>()(
           defaultLlmProvider: state.defaultLlmProvider,
           llmBaseUrl: state.llmBaseUrl,
           llmModel: state.llmModel,
+          defaultTranscriptionProvider: state.defaultTranscriptionProvider,
           defaultAggregator: state.defaultAggregator,
           elevenLabsModel: state.elevenLabsModel,
           favoriteVoices: state.favoriteVoices,
@@ -280,6 +353,15 @@ export const useSettingsStore = create<SettingsState>()(
           mcpAutoAllowTrustedLocal: state.mcpAutoAllowTrustedLocal,
           agentAutoConfirm: state.agentAutoConfirm,
           agentDryRun: state.agentDryRun,
+          ollamaHost: state.ollamaHost,
+          ollamaModel: state.ollamaModel,
+          whisperxBaseUrl: state.whisperxBaseUrl,
+          whisperxModel: state.whisperxModel,
+          whisperxLanguage: state.whisperxLanguage,
+          whisperxEnableVad: state.whisperxEnableVad,
+          whisperxMinSilenceMs: state.whisperxMinSilenceMs,
+          whisperxVadThreshold: state.whisperxVadThreshold,
+          whisperxPaddingMs: state.whisperxPaddingMs,
         }),
       },
     ),
