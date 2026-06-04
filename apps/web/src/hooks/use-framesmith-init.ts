@@ -8,8 +8,8 @@
  * Framesmith sets sessionStorage['__framesmith_config__'] before opening the
  * iframe. This hook runs once on mount:
  * 1. Creates one video track + one audio track
- * 2. Imports all video clips and adds them at their start_time
- * 3. Imports beat-specific audio and adds it at the clip's start_time
+ * 2. Imports all video clips at their start_time (skips if url is null)
+ * 3. Imports beat-specific audio at the clip's start_time
  */
 
 import { useEffect, useRef } from "react";
@@ -19,7 +19,7 @@ export const FRAMESMITH_STORAGE_KEY = "__framesmith_config__";
 
 export interface FramesmithClip {
   id: string;
-  url: string;
+  url: string | null;
   duration: number;
   start_time?: number;
   audioUrl?: string | null;
@@ -31,6 +31,29 @@ export interface FramesmithConfig {
   clips: FramesmithClip[];
   projectName?: string;
   episodeId?: string;
+}
+
+async function importAsset(
+  url: string,
+  filename: string,
+  mimeType: string,
+  importMedia: (file: File) => Promise<any>
+): Promise<string | null> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+
+  const blob = await response.blob();
+  const file = new File([blob], filename, { type: mimeType });
+  const result = await importMedia(file);
+
+  if (!result.success) {
+    console.error(`[Framesmith] importMedia failed for ${filename}:`, result.error?.message);
+    return null;
+  }
+
+  const items = useProjectStore.getState().project.mediaLibrary.items;
+  const newItem = items[items.length - 1];
+  return newItem?.id ?? null;
 }
 
 export function useFramesmithInit() {
@@ -52,12 +75,9 @@ export function useFramesmithInit() {
       return;
     }
 
-    const {
-      createNewProject,
-      importMedia,
-      addTrack,
-      addClip,
-    } = useProjectStore.getState();
+    // Keep config in sessionStorage until initialization is complete
+    const { createNewProject, importMedia, addTrack, addClip } =
+      useProjectStore.getState();
 
     createNewProject(config.projectName || "Framesmith Project", {
       width: 1920,
@@ -65,11 +85,11 @@ export function useFramesmithInit() {
       frameRate: 30,
     });
 
-    // Small delay to let the editor initialize before importing
     setTimeout(async () => {
-      console.log(`[Framesmith] Setting up timeline for ${config.clips.length} clips...`);
+      const clips = config.clips ?? [];
+      console.log(`[Framesmith] Initializing timeline — ${clips.length} clips, episodeId=${config.episodeId}`);
 
-      // Create video and audio tracks
+      // ── Create tracks ──────────────────────────────────────────────────
       const videoTrackResult = await addTrack("video");
       const audioTrackResult = await addTrack("audio");
 
@@ -83,107 +103,86 @@ export function useFramesmithInit() {
       const audioTrackId = audioTrackResult.data?.id;
 
       if (!videoTrackId || !audioTrackId) {
-        console.error("[Framesmith] Track IDs not found");
+        console.error("[Framesmith] Track IDs missing after creation");
         sessionStorage.removeItem(FRAMESMITH_STORAGE_KEY);
         return;
       }
 
-      console.log(`[Framesmith] Video track: ${videoTrackId}, Audio track: ${audioTrackId}`);
+      console.log(`[Framesmith] Tracks created — video=${videoTrackId} audio=${audioTrackId}`);
 
-      // Map to track audio imports (beat_id -> mediaId)
-      const audioImports: Record<string, string> = {};
-
-      // Import all video clips (skip if URL not available — video may be pending)
-      for (const clip of config.clips) {
+      // ── Import video clips ─────────────────────────────────────────────
+      let videosImported = 0;
+      for (const clip of clips) {
         if (!clip.url) {
-          console.log(`[Framesmith] Skipping video ${clip.id} — URL not available (video pending)`);
+          console.log(`[Framesmith] Skip video ${clip.id} — pending`);
           continue;
         }
-
         try {
-          console.log(`[Framesmith] Fetching video ${clip.id}...`);
-          const response = await fetch(clip.url);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          const blob = await response.blob();
-          const file = new File([blob], `${clip.id}.mp4`, {
-            type: "video/mp4",
-          });
-
-          const importResult = await importMedia(file);
-
-          if (importResult.success) {
-            const items = useProjectStore.getState().project.mediaLibrary.items;
-            const newItem = items[items.length - 1];
-
-            if (newItem) {
-              const startTime = clip.start_time ?? 0;
-              const addResult = await addClip(videoTrackId, newItem.id, startTime);
-
-              if (addResult.success) {
-                console.log(`[Framesmith] Added video clip ${clip.id} at ${startTime}s`);
-              } else {
-                console.error(`[Framesmith] Failed to add video clip ${clip.id}`);
-              }
+          const mediaId = await importAsset(
+            clip.url,
+            `${clip.id}.mp4`,
+            "video/mp4",
+            importMedia
+          );
+          if (mediaId) {
+            const startTime = clip.start_time ?? 0;
+            const r = await addClip(videoTrackId, mediaId, startTime);
+            if (r.success) {
+              console.log(`[Framesmith] Video ${clip.id} → track at ${startTime}s`);
+              videosImported++;
+            } else {
+              console.error(`[Framesmith] addClip failed for video ${clip.id}`);
             }
-          } else {
-            console.error(
-              `[Framesmith] Failed to import video ${clip.id}:`,
-              importResult.error?.message
-            );
           }
         } catch (err) {
           console.error(`[Framesmith] Error importing video ${clip.id}:`, err);
         }
       }
 
-      // Import beat audio clips
-      for (const clip of config.clips) {
-        if (!clip.audioUrl || audioImports[clip.beat_id || ""]) {
-          continue; // Skip if no audio or already imported this beat
+      // ── Import beat audio clips ────────────────────────────────────────
+      // Deduplicate by beat_id (multiple shots can share a beat)
+      const importedBeats = new Set<string>();
+      let audioImported = 0;
+
+      for (const clip of clips) {
+        const beatId = clip.beat_id || "";
+        if (!clip.audioUrl) {
+          console.log(`[Framesmith] Skip audio ${clip.id} — no audioUrl`);
+          continue;
         }
+        if (importedBeats.has(beatId)) {
+          console.log(`[Framesmith] Skip audio beat ${beatId} — already imported`);
+          continue;
+        }
+        importedBeats.add(beatId);
 
         try {
-          console.log(`[Framesmith] Fetching audio for beat ${clip.beat_id}...`);
-          const response = await fetch(clip.audioUrl);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          const blob = await response.blob();
-          const file = new File([blob], `${clip.beat_id}.wav`, {
-            type: "audio/wav",
-          });
-
-          const importResult = await importMedia(file);
-
-          if (importResult.success) {
-            const items = useProjectStore.getState().project.mediaLibrary.items;
-            const newItem = items[items.length - 1];
-
-            if (newItem) {
-              audioImports[clip.beat_id || ""] = newItem.id;
-              const startTime = clip.start_time ?? 0;
-              const addResult = await addClip(audioTrackId, newItem.id, startTime);
-
-              if (addResult.success) {
-                console.log(`[Framesmith] Added audio ${clip.beat_id} at ${startTime}s`);
-              } else {
-                console.error(`[Framesmith] Failed to add audio ${clip.beat_id}`);
-              }
+          console.log(`[Framesmith] Fetching audio beat=${beatId} url=${clip.audioUrl}`);
+          const mediaId = await importAsset(
+            clip.audioUrl,
+            `${beatId}.wav`,
+            "audio/wav",
+            importMedia
+          );
+          if (mediaId) {
+            const startTime = clip.start_time ?? 0;
+            const r = await addClip(audioTrackId, mediaId, startTime);
+            if (r.success) {
+              console.log(`[Framesmith] Audio beat=${beatId} → track at ${startTime}s`);
+              audioImported++;
+            } else {
+              console.error(`[Framesmith] addClip failed for audio beat=${beatId}`);
             }
-          } else {
-            console.error(
-              `[Framesmith] Failed to import audio ${clip.beat_id}:`,
-              importResult.error?.message
-            );
           }
         } catch (err) {
-          console.error(`[Framesmith] Error importing audio ${clip.beat_id}:`, err);
+          console.error(`[Framesmith] Error importing audio beat=${beatId}:`, err);
         }
       }
 
-      // Clear the init data so it doesn't reload on refresh
       sessionStorage.removeItem(FRAMESMITH_STORAGE_KEY);
-      console.log("[Framesmith] Initialization complete");
+      console.log(
+        `[Framesmith] Done — ${videosImported} videos + ${audioImported} audio clips imported`
+      );
     }, 800);
   }, []);
 }
