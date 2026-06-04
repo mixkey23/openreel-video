@@ -69,6 +69,7 @@ export const GeneralPanel: React.FC = () => {
     (s) =>
       s.id === "openai" ||
       s.id === "anthropic" ||
+      s.id === "ollama" ||           // always show: no API key needed
       configuredServices.includes(s.id),
   );
 
