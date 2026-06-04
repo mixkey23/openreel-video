@@ -35,7 +35,7 @@ export interface AutoCutResult {
 export class AutoCutService {
   private whisperx: WhisperXProvider;
 
-  constructor(whisperxConfig?: { baseUrl?: string; model?: string }) {
+  constructor(whisperxConfig?: { baseUrl?: string; model?: "large-v3" | "large-v3-turbo" | "medium" | "small" }) {
     this.whisperx = new WhisperXProvider(whisperxConfig);
   }
 

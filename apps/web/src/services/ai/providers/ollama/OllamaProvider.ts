@@ -47,16 +47,25 @@ export class OllamaProvider implements AIProvider {
   }
 
   /**
-   * Chat completion — streaming or non-streaming
+   * Chat completion — non-streaming only
+   * For streaming, use chatStream() directly
    */
   async chat(
     messages: ChatMessage[],
     options?: ChatOptions,
   ): Promise<ChatResponse> {
-    if (options?.stream) {
-      return this.chatStream(messages, options);
-    }
     return this.chatNonStreaming(messages, options);
+  }
+
+  /**
+   * Get a stream of chat completion chunks
+   * Usage: for await (const chunk of provider.chatStream(messages)) { ... }
+   */
+  chatStream(
+    messages: ChatMessage[],
+    options?: ChatOptions,
+  ): AsyncGenerator<string> {
+    return this.streamChat(messages, options);
   }
 
   /**
@@ -124,10 +133,9 @@ export class OllamaProvider implements AIProvider {
   }
 
   /**
-   * Streaming chat completion
-   * Returns an async generator that yields chunks of text as they arrive
+   * Internal streaming implementation
    */
-  private async *chatStream(
+  private async *streamChat(
     messages: ChatMessage[],
     options?: ChatOptions,
   ): AsyncGenerator<string> {

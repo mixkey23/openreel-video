@@ -15,8 +15,6 @@ import type {
 } from "../../ai/providers/types";
 import { ProviderError } from "../../ai/providers/types";
 import type {
-  ComfyUIWorkflow,
-  WorkflowExecution,
   GenerationProgress,
   GenerationResult,
   ImageGenerationRequest,

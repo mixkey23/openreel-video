@@ -54,7 +54,7 @@ export class AutoSocialShortsService {
   private ollama: OllamaProvider;
 
   constructor(
-    transcriptionConfig?: { baseUrl?: string; model?: string },
+    transcriptionConfig?: { baseUrl?: string; model?: "large-v3" | "large-v3-turbo" | "medium" | "small" },
     ollamaConfig?: { host?: string; model?: string },
   ) {
     this.whisperx = new WhisperXProvider(transcriptionConfig);
@@ -88,7 +88,6 @@ export class AutoSocialShortsService {
     // Step 4: Generate shorts timelines
     const maxDuration = request.maxDuration || 60;
     const shorts = await this.generateShortsTimelines(
-      transcript,
       silences,
       highlights,
       maxDuration,
@@ -188,7 +187,6 @@ Respond in JSON:
    * Generate shorts timelines from highlights and silences
    */
   private async generateShortsTimelines(
-    transcript: TranscriptionResponse,
     silences: Array<{ start: number; end: number; duration: number }>,
     highlights: Array<{
       startTime: number;
