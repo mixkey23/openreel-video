@@ -150,6 +150,7 @@ export interface ProjectState {
     trackId: string,
     mediaId: string,
     startTime: number,
+    duration?: number,
   ) => Promise<ActionResult>;
   addClipToNewTrack: (
     mediaId: string,
@@ -2316,7 +2317,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       // Clip actions
-      addClip: async (trackId: string, mediaId: string, startTime: number) => {
+      addClip: async (trackId: string, mediaId: string, startTime: number, duration?: number) => {
         const { project, actionExecutor } = get();
 
         // IMPORTANT: Deep clone the project BEFORE mutation
@@ -2324,11 +2325,14 @@ export const useProjectStore = create<ProjectState>()(
         // to ensure Zustand detects the state change
         const projectCopy = structuredClone(project);
 
+        const params: Record<string, unknown> = { trackId, mediaId, startTime };
+        if (duration !== undefined && duration > 0) params.duration = duration;
+
         const action: Action = {
           type: "clip/add",
           id: uuidv4(),
           timestamp: Date.now(),
-          params: { trackId, mediaId, startTime },
+          params,
         };
 
         const result = await actionExecutor.execute(action, projectCopy);

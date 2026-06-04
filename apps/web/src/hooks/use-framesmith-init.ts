@@ -23,6 +23,7 @@ export interface FramesmithClip {
   duration: number;
   start_time?: number;
   audioUrl?: string | null;
+  audioDuration?: number | null;
   beat_id?: string;
   name?: string;
 }
@@ -170,9 +171,12 @@ export function useFramesmithInit() {
           if (!mediaItem) continue;
 
           const startTime = clip.start_time ?? 0;
-          const addResult = await addClip(audioTrack.id, mediaItem.id, startTime);
+          // Pass audioDuration explicitly so clip/add doesn't fall back to 5s default
+          // when browser metadata detection is slow or unavailable.
+          const audioDur = clip.audioDuration ?? undefined;
+          const addResult = await addClip(audioTrack.id, mediaItem.id, startTime, audioDur);
           if (addResult.success) {
-            console.log(`[Framesmith] Audio beat=${beatId} → timeline at ${startTime}s`);
+            console.log(`[Framesmith] Audio beat=${beatId} → timeline at ${startTime}s dur=${audioDur ?? "auto"}s`);
             audioImported++;
           } else {
             console.error(`[Framesmith] addClip failed for audio beat=${beatId}`);
