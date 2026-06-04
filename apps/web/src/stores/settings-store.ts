@@ -85,13 +85,20 @@ export interface SettingsState {
   // Local provider configuration (Ollama, WhisperX)
   ollamaHost: string;
   ollamaModel: string;
+  ollamaVisionModel: string;
   whisperxBaseUrl: string;
   whisperxModel: "large-v3" | "large-v3-turbo" | "medium" | "small";
   whisperxLanguage: string;
   whisperxEnableVad: boolean;
+  whisperxEnableDiarization: boolean;
   whisperxMinSilenceMs: number;
   whisperxVadThreshold: number;
   whisperxPaddingMs: number;
+
+  // Auto-cut configuration
+  autoCutMinSegmentDuration: number;
+  autoCutUseSpeakerChanges: boolean;
+  autoCutUseSilences: boolean;
 
   // Session-scoped API caches (cleared on session lock, not persisted)
   cachedElevenLabsVoices: Array<{ voice_id: string; name: string; category: string; labels: Record<string, string>; preview_url?: string }> | null;
@@ -128,6 +135,11 @@ export interface SettingsState {
   setWhisperxMinSilenceMs: (ms: number) => void;
   setWhisperxVadThreshold: (threshold: number) => void;
   setWhisperxPaddingMs: (ms: number) => void;
+  setOllamaVisionModel: (model: string) => void;
+  setWhisperxEnableDiarization: (enabled: boolean) => void;
+  setAutoCutMinSegmentDuration: (ms: number) => void;
+  setAutoCutUseSpeakerChanges: (enabled: boolean) => void;
+  setAutoCutUseSilences: (enabled: boolean) => void;
   openSettings: (tab?: SettingsTab) => void;
   closeSettings: () => void;
 }
@@ -152,13 +164,20 @@ export const useSettingsStore = create<SettingsState>()(
         // Local providers
         ollamaHost: "http://localhost:11434",
         ollamaModel: "qwen2.5:14b-instruct",
+        ollamaVisionModel: "qwen3-vl:4b",
         whisperxBaseUrl: "http://localhost:8000",
         whisperxModel: "large-v3" as const,
         whisperxLanguage: "en",
         whisperxEnableVad: true,
+        whisperxEnableDiarization: true,
         whisperxMinSilenceMs: 300,
         whisperxVadThreshold: 0.5,
         whisperxPaddingMs: 100,
+
+        // Auto-cut
+        autoCutMinSegmentDuration: 0.5, // minimum 500ms segments
+        autoCutUseSpeakerChanges: true,
+        autoCutUseSilences: true,
 
         cachedElevenLabsVoices: null,
         cachedElevenLabsModels: null,
@@ -258,6 +277,21 @@ export const useSettingsStore = create<SettingsState>()(
         setWhisperxPaddingMs: (ms: number) =>
           set({ whisperxPaddingMs: Math.max(0, ms) }),
 
+        setOllamaVisionModel: (model: string) =>
+          set({ ollamaVisionModel: model }),
+
+        setWhisperxEnableDiarization: (enabled: boolean) =>
+          set({ whisperxEnableDiarization: enabled }),
+
+        setAutoCutMinSegmentDuration: (ms: number) =>
+          set({ autoCutMinSegmentDuration: Math.max(0.1, ms) }),
+
+        setAutoCutUseSpeakerChanges: (enabled: boolean) =>
+          set({ autoCutUseSpeakerChanges: enabled }),
+
+        setAutoCutUseSilences: (enabled: boolean) =>
+          set({ autoCutUseSilences: enabled }),
+
         openSettings: (tab?: SettingsTab) =>
           set({
             settingsOpen: true,
@@ -283,13 +317,18 @@ export const useSettingsStore = create<SettingsState>()(
           configuredServices: state.configuredServices,
           ollamaHost: state.ollamaHost,
           ollamaModel: state.ollamaModel,
+          ollamaVisionModel: state.ollamaVisionModel,
           whisperxBaseUrl: state.whisperxBaseUrl,
           whisperxModel: state.whisperxModel,
           whisperxLanguage: state.whisperxLanguage,
           whisperxEnableVad: state.whisperxEnableVad,
+          whisperxEnableDiarization: state.whisperxEnableDiarization,
           whisperxMinSilenceMs: state.whisperxMinSilenceMs,
           whisperxVadThreshold: state.whisperxVadThreshold,
           whisperxPaddingMs: state.whisperxPaddingMs,
+          autoCutMinSegmentDuration: state.autoCutMinSegmentDuration,
+          autoCutUseSpeakerChanges: state.autoCutUseSpeakerChanges,
+          autoCutUseSilences: state.autoCutUseSilences,
         }),
       },
     ),
