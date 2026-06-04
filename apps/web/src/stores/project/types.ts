@@ -164,6 +164,7 @@ export interface ProjectState {
     trackId: string,
     mediaId: string,
     startTime: number,
+    duration?: number,
   ) => Promise<ActionResult>;
   placeMediaClip: (
     mediaId: string,

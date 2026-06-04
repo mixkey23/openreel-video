@@ -198,6 +198,7 @@ export interface ProjectState {
     trackId: string,
     mediaId: string,
     startTime: number,
+    duration?: number,
   ) => Promise<ActionResult>;
   addClipToNewTrack: (
     mediaId: string,
