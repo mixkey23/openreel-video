@@ -100,6 +100,12 @@ export interface SettingsState {
   autoCutUseSpeakerChanges: boolean;
   autoCutUseSilences: boolean;
 
+  // ComfyUI configuration
+  comfyuiHost: string;
+  comfyuiDefaultImageModel: string; // flux, sdxl, qwen-image
+  comfyuiDefaultVideoModel: string; // wan, ltx, hunyuan, cosmos, veo
+  comfyuiAutoDiscovery: boolean;
+
   // Session-scoped API caches (cleared on session lock, not persisted)
   cachedElevenLabsVoices: Array<{ voice_id: string; name: string; category: string; labels: Record<string, string>; preview_url?: string }> | null;
   cachedElevenLabsModels: Array<{ model_id: string; name: string; description?: string; can_do_text_to_speech?: boolean; languages?: Array<{ language_id: string; name: string }> }> | null;
@@ -140,6 +146,10 @@ export interface SettingsState {
   setAutoCutMinSegmentDuration: (ms: number) => void;
   setAutoCutUseSpeakerChanges: (enabled: boolean) => void;
   setAutoCutUseSilences: (enabled: boolean) => void;
+  setComfyuiHost: (host: string) => void;
+  setComfyuiDefaultImageModel: (model: string) => void;
+  setComfyuiDefaultVideoModel: (model: string) => void;
+  setComfyuiAutoDiscovery: (enabled: boolean) => void;
   openSettings: (tab?: SettingsTab) => void;
   closeSettings: () => void;
 }
@@ -178,6 +188,12 @@ export const useSettingsStore = create<SettingsState>()(
         autoCutMinSegmentDuration: 0.5, // minimum 500ms segments
         autoCutUseSpeakerChanges: true,
         autoCutUseSilences: true,
+
+        // ComfyUI
+        comfyuiHost: "http://localhost:8188",
+        comfyuiDefaultImageModel: "flux",
+        comfyuiDefaultVideoModel: "ltx",
+        comfyuiAutoDiscovery: true,
 
         cachedElevenLabsVoices: null,
         cachedElevenLabsModels: null,
@@ -292,6 +308,17 @@ export const useSettingsStore = create<SettingsState>()(
         setAutoCutUseSilences: (enabled: boolean) =>
           set({ autoCutUseSilences: enabled }),
 
+        setComfyuiHost: (host: string) => set({ comfyuiHost: host }),
+
+        setComfyuiDefaultImageModel: (model: string) =>
+          set({ comfyuiDefaultImageModel: model }),
+
+        setComfyuiDefaultVideoModel: (model: string) =>
+          set({ comfyuiDefaultVideoModel: model }),
+
+        setComfyuiAutoDiscovery: (enabled: boolean) =>
+          set({ comfyuiAutoDiscovery: enabled }),
+
         openSettings: (tab?: SettingsTab) =>
           set({
             settingsOpen: true,
@@ -329,6 +356,10 @@ export const useSettingsStore = create<SettingsState>()(
           autoCutMinSegmentDuration: state.autoCutMinSegmentDuration,
           autoCutUseSpeakerChanges: state.autoCutUseSpeakerChanges,
           autoCutUseSilences: state.autoCutUseSilences,
+          comfyuiHost: state.comfyuiHost,
+          comfyuiDefaultImageModel: state.comfyuiDefaultImageModel,
+          comfyuiDefaultVideoModel: state.comfyuiDefaultVideoModel,
+          comfyuiAutoDiscovery: state.comfyuiAutoDiscovery,
         }),
       },
     ),
