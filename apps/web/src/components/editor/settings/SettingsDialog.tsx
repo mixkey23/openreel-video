@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { Settings, Key, Plug } from "@/icons/lucide-compat";
+import { Settings, Key, Plug, Cpu } from "@/icons/lucide-compat";
 import { Tabs, TabsList, TabsTrigger } from "@openreel/ui";
 import { ToolcraftDialog as Dialog, ToolcraftDialogHeader as DialogHeader } from "@openreel/ui";
 import { ToolcraftLayout as Layout, ToolcraftLayoutContent as LayoutContent } from "@openreel/ui";
@@ -7,6 +7,7 @@ import { useSettingsStore, type SettingsTab } from "../../../stores/settings-sto
 import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 import { McpPanel } from "./McpPanel";
+import { LocalProvidersPanel } from "./LocalProvidersPanel";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
@@ -14,6 +15,7 @@ const isDesktop =
 const TABS: readonly { id: SettingsTab; label: string; icon: typeof Settings }[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "api-keys", label: "API Keys", icon: Key },
+  { id: "local-providers", label: "Local AI", icon: Cpu },
   ...(isDesktop
     ? [{ id: "mcp" as const, label: "MCP", icon: Plug }]
     : []),
@@ -37,7 +39,7 @@ export const SettingsDialog: React.FC = () => {
         header={
           <DialogHeader
             title="Settings"
-            subtitle="Configure preferences and manage API keys for external services."
+            subtitle="Configure preferences, API keys and local AI providers."
             onOpenChange={(open) => !open && closeSettings()}
             startContent={<Settings size={18} className="text-primary" aria-hidden />}
           />
@@ -86,6 +88,7 @@ export const SettingsDialog: React.FC = () => {
               {settingsTab === "general" && <GeneralPanel />}
               {settingsTab === "api-keys" && <ApiKeysPanel />}
               {settingsTab === "mcp" && <McpPanel />}
+              {settingsTab === "local-providers" && <LocalProvidersPanel />}
             </div>
           </LayoutContent>
         }
