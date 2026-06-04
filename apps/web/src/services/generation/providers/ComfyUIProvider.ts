@@ -29,6 +29,17 @@ const DEFAULT_HOST = "http://localhost:8188";
 const POLL_INTERVAL = 500; // ms
 const MAX_POLL_TIME = 3600000; // 1 hour
 
+/**
+ * Build a URL routed through the Framesmith HTTPS proxy when needed.
+ * Prevents Mixed Content errors when OpenReel is served over HTTPS.
+ */
+function comfyProxyUrl(path: string, host: string): string {
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    return `/api/proxy/comfyui${path}?host=${encodeURIComponent(host)}`;
+  }
+  return `${host.replace(/\/$/, "")}${path}`;
+}
+
 export class ComfyUIProvider implements AIProvider {
   readonly id = "comfyui";
   readonly name = "ComfyUI";
@@ -241,7 +252,7 @@ export class ComfyUIProvider implements AIProvider {
   private async queueWorkflow(
     payload: Record<string, unknown>,
   ): Promise<{ prompt_id: string }> {
-    const res = await fetch(`${this.host}/prompt`, {
+    const res = await fetch(comfyProxyUrl("/prompt", this.host), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -284,7 +295,7 @@ export class ComfyUIProvider implements AIProvider {
       try {
         // Get history
         const historyRes = await fetch(
-          `${this.host}/history/${executionId}`,
+          comfyProxyUrl(`/history/${executionId}`, this.host),
         );
 
         if (!historyRes.ok) {
@@ -387,7 +398,7 @@ export class ComfyUIProvider implements AIProvider {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.host}/system_stats`);
+      const res = await fetch(comfyProxyUrl("/system_stats", this.host));
       return res.ok;
     } catch {
       return false;
@@ -399,7 +410,7 @@ export class ComfyUIProvider implements AIProvider {
    */
   async getSystemStats(): Promise<Record<string, unknown> | null> {
     try {
-      const res = await fetch(`${this.host}/system_stats`);
+      const res = await fetch(comfyProxyUrl("/system_stats", this.host));
       if (!res.ok) return null;
       return (await res.json()) as Record<string, unknown>;
     } catch {

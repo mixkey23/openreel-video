@@ -21,6 +21,14 @@ import { ProviderError } from "../types";
 
 const DEFAULT_VISION_MODEL = "qwen3-vl:4b";
 
+function ollamaProxyUrl(path: string, host: string): string {
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    const proxyPath = path.replace(/^\/api\//, "/ollama/");
+    return `/api/proxy${proxyPath}?host=${encodeURIComponent(host)}`;
+  }
+  return `${host.replace(/\/$/, "")}${path}`;
+}
+
 export interface VisionAnalysisOptions {
   analysisType?: "ocr" | "objects" | "scene" | "logo" | "summary";
   language?: string;
@@ -115,7 +123,7 @@ export class OllamaVisionProvider implements AIProvider {
     };
 
     try {
-      const res = await fetch(`${this.host}/api/chat`, {
+      const res = await fetch(ollamaProxyUrl("/api/chat", this.host), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -274,7 +282,7 @@ export class OllamaVisionProvider implements AIProvider {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.host}/api/tags`, {
+      const res = await fetch(ollamaProxyUrl("/api/tags", this.host), {
         method: "GET",
       });
       return res.ok;

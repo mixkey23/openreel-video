@@ -124,6 +124,25 @@ function HostField({
   );
 }
 
+/**
+ * Build a proxy URL so the browser never makes direct http:// requests
+ * from an https:// page (Mixed Content).
+ *
+ * When window.location.protocol is https: all local-service calls are
+ * routed through /api/proxy/* (Framesmith's own HTTPS endpoint).
+ * When running on plain http: (local dev) the direct URL is used instead.
+ */
+function proxyUrl(path: string, serviceHost: string): string {
+  const isHttps = window.location.protocol === "https:";
+  if (!isHttps) {
+    // Local dev — call services directly
+    return `${serviceHost.replace(/\/$/, "")}${path}`;
+  }
+  // Production (HTTPS) — route through Framesmith proxy
+  const encoded = encodeURIComponent(serviceHost);
+  return `/api/proxy${path}?host=${encoded}`;
+}
+
 /* ── Main component ───────────────────────────────────────────── */
 
 export const LocalProvidersPanel: React.FC = () => {
@@ -157,7 +176,7 @@ export const LocalProvidersPanel: React.FC = () => {
     setTestingOllama(true);
     setOllamaStatus(null);
     try {
-      const res = await fetch(`${settings.ollamaHost}/api/tags`);
+      const res = await fetch(proxyUrl("/ollama/tags", settings.ollamaHost));
       if (res.ok) {
         const data = (await res.json()) as { models?: Array<{ name: string }> };
         const names = data.models?.map((m) => m.name) ?? [];
@@ -178,7 +197,7 @@ export const LocalProvidersPanel: React.FC = () => {
     setTestingWhisperx(true);
     setWhisperxStatus(null);
     try {
-      const res = await fetch(`${settings.whisperxBaseUrl}/api/health`);
+      const res = await fetch(proxyUrl("/whisperx/health", settings.whisperxBaseUrl));
       setWhisperxStatus(res.ok);
       if (res.ok) {
         toast.success("WhisperX connected", "Transcription service is running.");
@@ -196,7 +215,7 @@ export const LocalProvidersPanel: React.FC = () => {
     setTestingComfyui(true);
     setComfyuiStatus(null);
     try {
-      const res = await fetch(`${settings.comfyuiHost}/system_stats`);
+      const res = await fetch(proxyUrl("/comfyui/system_stats", settings.comfyuiHost));
       setComfyuiStatus(res.ok);
       if (res.ok) {
         toast.success("ComfyUI connected", "Generation server is running.");
@@ -215,7 +234,10 @@ export const LocalProvidersPanel: React.FC = () => {
   const discoverWorkflows = useCallback(async () => {
     setLoadingWorkflows(true);
     try {
+      // Use proxy endpoint so HTTPS pages don't get blocked
+      const discoverEndpoint = proxyUrl("/comfyui/workflows", settings.comfyuiHost);
       workflowRegistry.setHost(settings.comfyuiHost);
+      workflowRegistry.setDiscoveryEndpoint(discoverEndpoint);
       const found = await workflowRegistry.discoverWorkflows();
       setWorkflows(workflowRegistry.getAll());
       toast.success("Workflows loaded", `Found ${found.length} workflow${found.length !== 1 ? "s" : ""}.`);
