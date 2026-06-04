@@ -11,7 +11,9 @@ export class WorkflowRegistry {
   private workflows: Map<string, ComfyUIWorkflow> = new Map();
   private byCategory: Map<string, ComfyUIWorkflow[]> = new Map();
   private comfyuiHost: string;
-  private refreshInterval: NodeJS.Timeout | null = null;
+  /** Override for the full discovery URL (used for HTTPS proxy routing) */
+  private discoveryEndpoint: string | null = null;
+  private refreshInterval: ReturnType<typeof setTimeout> | null = null;
 
   constructor(comfyuiHost: string = "http://localhost:8188") {
     this.comfyuiHost = comfyuiHost;
@@ -43,12 +45,21 @@ export class WorkflowRegistry {
   }
 
   /**
+   * Set a custom discovery endpoint (e.g. HTTPS proxy URL).
+   * When set, discoverWorkflows() uses this URL instead of comfyuiHost + /openreel/workflows.
+   */
+  setDiscoveryEndpoint(url: string | null): void {
+    this.discoveryEndpoint = url;
+  }
+
+  /**
    * Discover workflows from ComfyUI server
-   * Polls the /api/workflows endpoint
+   * Polls the /openreel/workflows endpoint (or the proxy override).
    */
   async discoverWorkflows(): Promise<ComfyUIWorkflow[]> {
+    const url = this.discoveryEndpoint ?? `${this.comfyuiHost}/openreel/workflows`;
     try {
-      const res = await fetch(`${this.comfyuiHost}/openreel/workflows`, {
+      const res = await fetch(url, {
         method: "GET",
       });
 
@@ -177,10 +188,12 @@ export class WorkflowRegistry {
   }
 
   /**
-   * Change ComfyUI host
+   * Change ComfyUI host.
+   * Resets the discovery endpoint override so the default path is used again.
    */
   setHost(host: string): void {
     this.comfyuiHost = host;
+    this.discoveryEndpoint = null;
   }
 }
 
