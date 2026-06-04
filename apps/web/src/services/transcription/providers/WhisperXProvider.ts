@@ -61,18 +61,14 @@ export class WhisperXProvider implements AIProvider {
   private baseUrl: string;
   private model: WhisperXConfig["model"];
   private language: string;
-  private enableVad: boolean;
   private minSilenceMs: number;
-  private vadThreshold: number;
   private paddingMs: number;
 
   constructor(config?: WhisperXConfig) {
     this.baseUrl = config?.baseUrl || "http://localhost:8000";
     this.model = config?.model || "large-v3";
     this.language = config?.language || "en";
-    this.enableVad = config?.enableVad ?? true;
     this.minSilenceMs = config?.minSilenceMs ?? 300;
-    this.vadThreshold = config?.vadThreshold ?? 0.5;
     this.paddingMs = config?.paddingMs ?? 100;
   }
 
@@ -83,12 +79,13 @@ export class WhisperXProvider implements AIProvider {
   async transcribe(audioFile: File | Blob): Promise<TranscriptionResponse> {
     const formData = new FormData();
     formData.append("file", audioFile);
-    formData.append("model", this.model);
+    formData.append("model", String(this.model));
     formData.append("language", this.language);
     formData.append("batch_size", "16");
     formData.append("compute_type", "float16");
 
     try {
+
       const res = await fetch(`${this.baseUrl}/api/transcribe`, {
         method: "POST",
         body: formData,
@@ -265,11 +262,8 @@ export class WhisperXProvider implements AIProvider {
     if (config.baseUrl !== undefined) this.baseUrl = config.baseUrl;
     if (config.model !== undefined) this.model = config.model;
     if (config.language !== undefined) this.language = config.language;
-    if (config.enableVad !== undefined) this.enableVad = config.enableVad;
     if (config.minSilenceMs !== undefined)
       this.minSilenceMs = config.minSilenceMs;
-    if (config.vadThreshold !== undefined)
-      this.vadThreshold = config.vadThreshold;
     if (config.paddingMs !== undefined) this.paddingMs = config.paddingMs;
   }
 

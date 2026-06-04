@@ -5,7 +5,7 @@
  * Provides progress tracking and cancellation support.
  */
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { ComfyUIProvider, workflowRegistry } from "../services/generation/providers";
 import type {
@@ -32,8 +32,6 @@ export function useComfyUI() {
     error: null,
     result: null,
   });
-
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   const provider = useMemo(
     () => new ComfyUIProvider(settings.comfyuiHost),

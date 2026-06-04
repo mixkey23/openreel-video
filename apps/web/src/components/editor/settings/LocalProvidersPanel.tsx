@@ -13,7 +13,6 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  Plus,
   Trash2,
   Upload,
   Loader2,

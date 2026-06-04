@@ -66,7 +66,6 @@ export class AIClipAnalyzerService {
       const analysis = await this.analyzeFrame(
         keyframes[i],
         i,
-        request.clipUrl,
       );
       frameAnalyses.push(analysis);
     }
@@ -112,7 +111,6 @@ export class AIClipAnalyzerService {
   private async analyzeFrame(
     frameSource: string,
     frameNumber: number,
-    clipUrl: string,
   ): Promise<ClipFrameAnalysis> {
     const analysisPrompt = `Analyze this video frame and provide detailed feedback for video editing professionals.
 
