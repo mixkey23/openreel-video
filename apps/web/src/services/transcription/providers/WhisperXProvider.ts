@@ -163,7 +163,7 @@ export class WhisperXProvider implements AIProvider {
    * Remove silence from audio (generates cutting points)
    * Returns array of segments to keep
    */
-  async removesilences(
+  async removeSilences(
     audioFile: File | Blob,
   ): Promise<Array<{ start: number; end: number }>> {
     const silences = await this.detectSilences(audioFile);
@@ -193,6 +193,69 @@ export class WhisperXProvider implements AIProvider {
     }
 
     return segments;
+  }
+
+  /**
+   * Extract speaker timeline — groups speech by speaker
+   */
+  async getSpeakerTimeline(
+    audioFile: File | Blob,
+  ): Promise<
+    Array<{
+      speaker: string;
+      start: number;
+      end: number;
+      text: string;
+      confidence?: number;
+    }>
+  > {
+    const transcript = await this.transcribe(audioFile);
+
+    if (!transcript.speaker_diarization || transcript.speaker_diarization.length === 0) {
+      // Fallback: group by segments
+      return (
+        transcript.segments?.map((seg) => ({
+          speaker: "Speaker",
+          start: seg.start,
+          end: seg.end,
+          text: seg.text,
+          confidence: seg.noSpeechProb ? 1 - seg.noSpeechProb : undefined,
+        })) || []
+      );
+    }
+
+    return transcript.speaker_diarization.map((diar) => ({
+      speaker: diar.speaker,
+      start: diar.start,
+      end: diar.end,
+      text: diar.text,
+    }));
+  }
+
+  /**
+   * Get unique speakers in transcript
+   */
+  async getSpeakers(audioFile: File | Blob): Promise<string[]> {
+    const timeline = await this.getSpeakerTimeline(audioFile);
+    const speakers = new Set(timeline.map((t) => t.speaker));
+    return Array.from(speakers).sort();
+  }
+
+  /**
+   * Get speech segments for a specific speaker
+   */
+  async getSpeakerSegments(
+    audioFile: File | Blob,
+    speaker: string,
+  ): Promise<Array<{ start: number; end: number; text: string }>> {
+    const timeline = await this.getSpeakerTimeline(audioFile);
+    return timeline
+      .filter((t) => t.speaker === speaker)
+      .map((t) => ({
+        start: t.start,
+        end: t.end,
+        text: t.text,
+      }));
   }
 
   /**

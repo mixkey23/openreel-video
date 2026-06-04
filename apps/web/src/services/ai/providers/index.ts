@@ -17,3 +17,9 @@ export {
 
 export { OllamaProvider, DEFAULT_HOST, DEFAULT_MODEL } from "./ollama/OllamaProvider";
 export type { OllamaConfig } from "./ollama/OllamaProvider";
+
+export { OllamaVisionProvider, DEFAULT_VISION_MODEL } from "./ollama/OllamaVisionProvider";
+export type {
+  VisionAnalysisOptions,
+  VisionAnalysisResponse,
+} from "./ollama/OllamaVisionProvider";
