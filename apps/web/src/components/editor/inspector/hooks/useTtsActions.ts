@@ -1,16 +1,20 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useProjectStore } from "../../../../stores/project-store";
 import { useTtsAudioStore } from "../../../../stores/tts-store";
+import type { TtsProvider } from "../../../../stores/settings-store";
 import type { ElevenLabsVoice } from "../tts-types";
 
 interface UseTtsActionsOptions {
+  provider: TtsProvider;
   selectedVoice: string;
+  selectedWorkflow: string;
   text: string;
   enhanceText: boolean;
   enhancedPreview: string | null;
   allVoices: ElevenLabsVoice[];
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
   generateWithElevenLabs: (text: string, voiceId: string, signal?: AbortSignal) => Promise<Blob>;
+  generateWithComfyUI: (text: string, workflowId: string, signal?: AbortSignal) => Promise<Blob>;
   enhanceViaLlm: (text: string, signal?: AbortSignal) => Promise<string>;
   setText: (text: string) => void;
   setError: (error: string | null) => void;
@@ -38,13 +42,16 @@ interface UseTtsActionsReturn {
 
 export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsReturn {
   const {
+    provider,
     selectedVoice,
+    selectedWorkflow,
     text,
     enhanceText,
     enhancedPreview,
     allVoices,
     favoriteVoices,
     generateWithElevenLabs,
+    generateWithComfyUI,
     enhanceViaLlm,
     setText,
     setError,
@@ -112,12 +119,13 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
   }, [storeSetAudio, storeClearAudio]);
 
   const getSelectedVoiceName = useCallback((): string => {
+    if (provider === "comfyui") return "ComfyUI";
     const fav = favoriteVoices.find((v) => v.voiceId === selectedVoice);
     if (fav) return fav.name;
     const apiVoice = allVoices.find((v) => v.voice_id === selectedVoice);
     if (apiVoice) return apiVoice.name;
     return "TTS";
-  }, [selectedVoice, favoriteVoices, allVoices]);
+  }, [provider, selectedVoice, favoriteVoices, allVoices]);
 
   const handleEnhance = useCallback(async () => {
     if (!text.trim()) {
@@ -159,7 +167,9 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     try {
       const finalText = (enhanceText && enhancedPreview) ? enhancedPreview : text.trim();
 
-      const blob = await generateWithElevenLabs(finalText, selectedVoice, controller.signal);
+      const blob = provider === "comfyui"
+        ? await generateWithComfyUI(finalText, selectedWorkflow, controller.signal)
+        : await generateWithElevenLabs(finalText, selectedVoice, controller.signal);
 
       storeSetAudio(blob);
 
@@ -173,7 +183,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     } finally {
       setIsGenerating(false);
     }
-  }, [text, enhancedPreview, enhanceText, selectedVoice, generateWithElevenLabs, setError, storeSetAudio]);
+  }, [text, enhancedPreview, enhanceText, provider, selectedVoice, selectedWorkflow, generateWithElevenLabs, generateWithComfyUI, setError, storeSetAudio]);
 
   const togglePlayback = useCallback(() => {
     if (!audioRef.current || !audioUrl) return;

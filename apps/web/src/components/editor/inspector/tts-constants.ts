@@ -1,5 +1,10 @@
 import type { ElevenLabsModel } from "./tts-types";
 
+export const TTS_PROVIDERS = [
+  { id: "elevenlabs" as const, label: "ElevenLabs", description: "Premium AI voices" },
+  { id: "comfyui" as const, label: "ComfyUI", description: "Local audio generation via ComfyUI workflows" },
+];
+
 export const FALLBACK_MODELS: ElevenLabsModel[] = [
   { model_id: "eleven_v3", name: "Eleven v3", description: "Latest ElevenLabs model", can_do_text_to_speech: true, languages: [] },
 ];

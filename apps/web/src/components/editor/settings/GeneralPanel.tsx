@@ -91,7 +91,9 @@ export const GeneralPanel: React.FC = () => {
     }
   }, [draftWidth, draftHeight, applyDimensions]);
 
-  const ttsProviders = SERVICE_REGISTRY.filter((s) => s.id === "elevenlabs");
+  const ttsProviders = SERVICE_REGISTRY.filter(
+    (s) => s.id === "elevenlabs" || s.id === "comfyui", // comfyui: local, no API key
+  );
 
   const llmProviders = SERVICE_REGISTRY.filter(
     (s) => s.id === "openai-compatible" || s.id === "anthropic-compatible",
@@ -101,6 +103,7 @@ export const GeneralPanel: React.FC = () => {
     (s) =>
       s.id === "kie-ai" ||
       s.id === "freepik" ||
+      s.id === "comfyui" || // local, no API key
       configuredServices.includes(s.id),
   );
   return (

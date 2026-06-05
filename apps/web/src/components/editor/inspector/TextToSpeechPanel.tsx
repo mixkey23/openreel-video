@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Mic,
   Loader2,
@@ -6,23 +6,28 @@ import {
   Settings,
   Sparkles,
   AlertTriangle,
+  Workflow,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
 import { ToolcraftIconButton as IconButton } from "@openreel/ui";
 import { ToolcraftText as Text } from "@openreel/ui";
 import { ToolcraftTextAreaControl } from "@openreel/ui";
+import { ToolcraftSelectControl as Selector } from "@openreel/ui";
 import { MockToggle } from "./shell/InspectorControls";
-import { useSettingsStore } from "../../../stores/settings-store";
+import { useSettingsStore, type TtsProvider } from "../../../stores/settings-store";
 import { useElevenLabsApi } from "./hooks/useElevenLabsApi";
 import { useTtsActions } from "./hooks/useTtsActions";
 import { VoiceBrowser } from "./VoiceBrowser";
 import { ModelSelector } from "./ModelSelector";
 import { EnhancedTextPreview } from "./EnhancedTextPreview";
 import { AudioResult } from "./AudioResult";
+import { TTS_PROVIDERS } from "./tts-constants";
 
 export const TextToSpeechPanel: React.FC = () => {
   const {
+    defaultTtsProvider,
+    comfyuiHost,
     defaultLlmProvider,
     llmBaseUrl,
     llmModel,
@@ -35,7 +40,13 @@ export const TextToSpeechPanel: React.FC = () => {
 
   const hasElevenLabsKey = configuredServices.includes("elevenlabs");
 
+  const [provider, setProvider] = useState<TtsProvider>(
+    defaultTtsProvider === "comfyui" ? "comfyui" : "elevenlabs",
+  );
   const [text, setText] = useState("");
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string>("");
+  const [audioWorkflows, setAudioWorkflows] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<string>(
     favoriteVoices.length > 0 ? favoriteVoices[0].voiceId : "",
   );
@@ -49,6 +60,7 @@ export const TextToSpeechPanel: React.FC = () => {
     isLoadingVoices,
     isLoadingModels,
     generateWithElevenLabs,
+    generateWithComfyUI,
     enhanceViaLlm,
   } = useElevenLabsApi({
     hasElevenLabsKey,
@@ -58,6 +70,27 @@ export const TextToSpeechPanel: React.FC = () => {
     llmBaseUrl,
     llmModel,
   });
+
+  // Load ComfyUI audio workflows when provider switches to comfyui
+  useEffect(() => {
+    if (provider !== "comfyui") return;
+    setIsLoadingWorkflows(true);
+    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+    const url = isHttps
+      ? `/api/proxy/comfyui/workflows?host=${encodeURIComponent(comfyuiHost)}`
+      : `${comfyuiHost.replace(/\/$/, "")}/openreel/workflows`;
+
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        const list = (data as Array<{ id: string; name: string; category?: string }>)
+          .filter((w) => w.category === "audio" || !w.category);
+        setAudioWorkflows(list);
+        if (list.length > 0 && !selectedWorkflow) setSelectedWorkflow(list[0].id);
+      })
+      .catch(() => setAudioWorkflows([]))
+      .finally(() => setIsLoadingWorkflows(false));
+  }, [provider, comfyuiHost, selectedWorkflow]);
 
   const {
     isGenerating,
@@ -76,13 +109,16 @@ export const TextToSpeechPanel: React.FC = () => {
     addToTimeline,
     downloadAudio,
   } = useTtsActions({
+    provider,
     selectedVoice,
+    selectedWorkflow,
     text,
     enhanceText,
     enhancedPreview,
     allVoices,
     favoriteVoices,
     generateWithElevenLabs,
+    generateWithComfyUI,
     enhanceViaLlm,
     setText,
     setError,
@@ -94,6 +130,14 @@ export const TextToSpeechPanel: React.FC = () => {
     if (model) return model.name;
     return elevenLabsModel;
   };
+
+  const isComfyUI = provider === "comfyui";
+  const generateDisabled =
+    isGenerating ||
+    !text.trim() ||
+    (!isComfyUI && (!hasElevenLabsKey || !selectedVoice)) ||
+    (isComfyUI && !selectedWorkflow) ||
+    (!isComfyUI && enhanceText && !enhancedPreview);
 
   const charCount = text.length;
   const maxChars = 5000;
@@ -114,7 +158,7 @@ export const TextToSpeechPanel: React.FC = () => {
               Text to Speech
             </Text>
             <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-              User-keyed ElevenLabs voice generation
+              {isComfyUI ? "Local ComfyUI audio workflows" : "User-keyed ElevenLabs voice generation"}
             </Text>
           </div>
         </div>
@@ -128,7 +172,48 @@ export const TextToSpeechPanel: React.FC = () => {
         />
       </Card>
 
-      {!hasElevenLabsKey && (
+      {/* Provider selector */}
+      <Selector
+        label="Provider"
+        size="md"
+        width="100%"
+        value={provider}
+        onChange={(value) => setProvider(value as TtsProvider)}
+        options={TTS_PROVIDERS.map((p) => ({ label: p.label, value: p.id }))}
+      />
+
+      {/* ComfyUI: workflow selector */}
+      {isComfyUI && (
+        <div className="space-y-2">
+          <Text type="supporting" color="secondary" className="flex items-center gap-1 text-[10px]">
+            <Workflow size={10} aria-hidden />
+            Audio Workflow
+          </Text>
+          {isLoadingWorkflows ? (
+            <div className="flex items-center gap-2 text-fg-3 text-[10px]">
+              <Loader2 size={12} className="animate-spin" aria-hidden /> Loading workflows...
+            </div>
+          ) : audioWorkflows.length === 0 ? (
+            <Card variant="yellow" padding={2} className="border border-amber-500/30">
+              <Text type="supporting" className="text-[9px] text-amber-400">
+                No audio workflows found. Add workflows with category "audio" in ComfyUI.
+              </Text>
+            </Card>
+          ) : (
+            <Selector
+              label="Audio workflow"
+              isLabelHidden
+              size="md"
+              width="100%"
+              value={selectedWorkflow}
+              onChange={(value) => setSelectedWorkflow(String(value))}
+              options={audioWorkflows.map((w) => ({ label: w.name, value: w.id }))}
+            />
+          )}
+        </div>
+      )}
+
+      {!isComfyUI && !hasElevenLabsKey && (
         <Card variant="yellow" padding={2} className="border border-amber-500/30">
           <Text type="supporting" className="text-[10px] text-amber-400">
             Add your ElevenLabs API key to enable speech generation. OpenReel no longer hosts a speech server.
@@ -136,7 +221,7 @@ export const TextToSpeechPanel: React.FC = () => {
         </Card>
       )}
 
-      {hasElevenLabsKey && (
+      {!isComfyUI && hasElevenLabsKey && (
         <ModelSelector allModels={allModels} isLoadingModels={isLoadingModels} />
       )}
 
@@ -154,6 +239,7 @@ export const TextToSpeechPanel: React.FC = () => {
           width="100%"
         />
         <div className="flex items-center justify-between">
+          {!isComfyUI ? (
           <div className="flex items-center gap-1.5">
             <MockToggle
               ariaLabel="Enhance for TTS"
@@ -170,6 +256,7 @@ export const TextToSpeechPanel: React.FC = () => {
               Enhance for TTS
             </Text>
           </div>
+          ) : <div />}
           <Text
             type="supporting"
             className={`text-[9px] ${charCount > maxChars * 0.9 ? "text-red-400" : "text-fg-3"}`}
@@ -178,7 +265,7 @@ export const TextToSpeechPanel: React.FC = () => {
           </Text>
         </div>
 
-        {enhancedPreview && enhanceText && (
+        {!isComfyUI && enhancedPreview && enhanceText && (
           <EnhancedTextPreview
             enhancedPreview={enhancedPreview}
             onUpdate={setEnhancedPreview}
@@ -187,12 +274,14 @@ export const TextToSpeechPanel: React.FC = () => {
         )}
       </div>
 
-      <VoiceBrowser
-        selectedVoice={selectedVoice}
-        onSelectVoice={setSelectedVoice}
-        allVoices={allVoices}
-        isLoadingVoices={isLoadingVoices}
-      />
+      {!isComfyUI && (
+        <VoiceBrowser
+          selectedVoice={selectedVoice}
+          onSelectVoice={setSelectedVoice}
+          allVoices={allVoices}
+          isLoadingVoices={isLoadingVoices}
+        />
+      )}
 
       {error && (
         <Card
@@ -223,7 +312,7 @@ export const TextToSpeechPanel: React.FC = () => {
         </Card>
       )}
 
-      {enhanceText && !enhancedPreview && (
+      {!isComfyUI && enhanceText && !enhancedPreview && (
         <Button
           label={isEnhancing ? "Enhancing..." : "Enhance Text"}
           icon={
@@ -254,7 +343,7 @@ export const TextToSpeechPanel: React.FC = () => {
         variant="primary"
         size="md"
         onClick={generateSpeech}
-        isDisabled={isGenerating || !hasElevenLabsKey || !text.trim() || !selectedVoice || (enhanceText && !enhancedPreview)}
+        isDisabled={generateDisabled}
         isLoading={isGenerating}
         className="w-full"
       />
@@ -286,7 +375,7 @@ export const TextToSpeechPanel: React.FC = () => {
       )}
 
       <Text type="supporting" color="secondary" className="block text-[9px] text-center">
-        Powered by ElevenLabs · {getSelectedModelName()}
+        {isComfyUI ? "Powered by ComfyUI (local)" : `Powered by ElevenLabs · ${getSelectedModelName()}`}
       </Text>
     </div>
   );
