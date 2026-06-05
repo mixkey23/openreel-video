@@ -21,7 +21,7 @@ export function useFramesmithAutosave() {
   const project    = useProjectStore((s) => s.project);
   const modifiedAt = project?.modifiedAt;
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSynced = useRef<string>("");
+  const lastSynced = useRef<number>(0);
 
   useEffect(() => {
     if (!framesmithEpisodeId) return;
