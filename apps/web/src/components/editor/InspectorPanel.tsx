@@ -58,6 +58,52 @@ import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
 
+// ── helpers ────────────────────────────────────────────────────────────────
+
+/** Encode a rendered AudioBuffer as a WAV ArrayBuffer (PCM 16-bit mono). */
+function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+  const numChannels = 1;
+  const sampleRate  = buffer.sampleRate;
+  const samples     = buffer.getChannelData(0);
+  const byteCount   = samples.length * 2;
+  const ab          = new ArrayBuffer(44 + byteCount);
+  const view        = new DataView(ab);
+  const write = (offset: number, val: number, size: number) => {
+    if (size === 2) view.setUint16(offset, val, true);
+    else            view.setUint32(offset, val, true);
+  };
+  const writeStr = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
+  writeStr(0, "RIFF"); write(4, 36 + byteCount, 4); writeStr(8, "WAVE");
+  writeStr(12, "fmt "); write(16, 16, 4); write(20, 1, 2); write(22, numChannels, 2);
+  write(24, sampleRate, 4); write(28, sampleRate * numChannels * 2, 4); write(32, numChannels * 2, 2); write(34, 16, 2);
+  writeStr(36, "data"); write(40, byteCount, 4);
+  for (let i = 0; i < samples.length; i++) {
+    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
+  }
+  return ab;
+}
+
+/** Group whisper word list into subtitle blocks (max 10 words / 5 s), offset by clipStart. */
+function groupWordsToSubtitles(
+  words: Array<{ word: string; start: number; end: number }>,
+  clipStart: number,
+): Array<{ text: string; startTime: number; endTime: number }> {
+  if (!words?.length) return [];
+  const blocks: Array<{ text: string; startTime: number; endTime: number }> = [];
+  let chunk: typeof words = [];
+  const flush = () => {
+    if (!chunk.length) return;
+    blocks.push({ text: chunk.map((w) => w.word).join(" ").trim(), startTime: clipStart + chunk[0].start, endTime: clipStart + chunk[chunk.length - 1].end });
+    chunk = [];
+  };
+  for (const w of words) {
+    if (chunk.length >= 10 || (chunk.length > 0 && w.end - chunk[0].start > 5)) flush();
+    chunk.push(w);
+  }
+  flush();
+  return blocks;
+}
+
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
 
@@ -472,12 +518,6 @@ export const InspectorPanel: React.FC = () => {
   const handleGenerateSubtitles = useCallback(async () => {
     if (!selectedClip || isTranscribing) return;
 
-    const mediaItem = getMediaItem(selectedClip.mediaId);
-    if (!mediaItem) {
-      console.error("[Subtitles] No media item found for clip");
-      return;
-    }
-
     setIsTranscribing(true);
     setTranscriptionProgress({
       phase: "extracting",
@@ -492,45 +532,96 @@ export const InspectorPanel: React.FC = () => {
       });
 
       const regularClip = getClip(selectedClip.id);
-      if (!regularClip) {
-        throw new Error("Could not find clip data");
+      if (!regularClip) throw new Error("Could not find clip data");
+
+      const clipStart = regularClip.startTime;
+      const clipEnd   = regularClip.startTime + regularClip.duration;
+
+      // Collect audio clips that overlap with the selected video clip's time range.
+      // Framesmith generates silent video files (S5) — audio lives on separate tracks.
+      const audioClips: Array<{ blob: Blob; startTime: number; duration: number }> = [];
+      for (const track of project.timeline.tracks) {
+        if (track.type !== "audio" || track.muted) continue;
+        for (const ac of track.clips) {
+          const acEnd = ac.startTime + ac.duration;
+          if (acEnd <= clipStart || ac.startTime >= clipEnd) continue;
+          const mi = getMediaItem(ac.mediaId);
+          if (mi?.blob) audioClips.push({ blob: mi.blob, startTime: ac.startTime, duration: ac.duration });
+        }
       }
 
-      const subtitles = await transcriptionService.transcribeClip(
-        regularClip,
-        mediaItem,
-        setTranscriptionProgress,
-      );
+      let audioBlob: Blob;
 
-      for (const subtitle of subtitles) {
-        addSubtitle({
-          ...subtitle,
-          animationStyle: defaultAnimationStyle,
-        });
+      if (audioClips.length === 0) {
+        // No dedicated audio track — fall back to extracting audio from the video file
+        const mediaItem = getMediaItem(selectedClip.mediaId);
+        if (!mediaItem) throw new Error("No media item found for clip");
+        const subtitles = await transcriptionService.transcribeClip(regularClip, mediaItem, setTranscriptionProgress);
+        for (const subtitle of subtitles) addSubtitle({ ...subtitle, animationStyle: defaultAnimationStyle });
+        setTranscriptionProgress({ phase: "complete", progress: 100, message: `Added ${subtitles.length} subtitles` });
+        setTimeout(() => { setTranscriptionProgress(null); setIsTranscribing(false); }, 2000);
+        return;
       }
 
-      setTranscriptionProgress({
-        phase: "complete",
-        progress: 100,
-        message: `Added ${subtitles.length} subtitles`,
-      });
+      // Merge audio clips into a single WAV covering [clipStart, clipEnd] using AudioContext
+      audioClips.sort((a, b) => a.startTime - b.startTime);
+      const duration = clipEnd - clipStart;
 
-      setTimeout(() => {
-        setTranscriptionProgress(null);
-        setIsTranscribing(false);
-      }, 2000);
+      const actx = new AudioContext();
+      const offlineCtx = new OfflineAudioContext(1, Math.ceil(duration * actx.sampleRate), actx.sampleRate);
+
+      for (const ac of audioClips) {
+        try {
+          const ab = await actx.decodeAudioData(await ac.blob.arrayBuffer());
+          const src = offlineCtx.createBufferSource();
+          src.buffer = ab;
+          src.connect(offlineCtx.destination);
+          // offsetInMix = where this audio clip starts relative to clipStart
+          const offsetInMix = Math.max(0, ac.startTime - clipStart);
+          src.start(offsetInMix);
+        } catch { /* skip undecodable clips */ }
+      }
+
+      const rendered = await offlineCtx.startRendering();
+      actx.close();
+
+      // Convert rendered AudioBuffer to WAV blob
+      const wavBuffer = audioBufferToWav(rendered);
+      audioBlob = new Blob([wavBuffer], { type: "audio/wav" });
+
+      setTranscriptionProgress({ phase: "transcribing", progress: 30, message: "Sending to Whisper..." });
+
+      // POST directly — bypass transcriptionService.transcribeClip to use merged audio
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "audio.wav");
+      if (targetLanguage && targetLanguage !== "none") formData.append("target_language", targetLanguage);
+
+      const res = await fetch(`${OPENREEL_TRANSCRIBE_URL}/transcribe`, { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+        throw new Error(String(err.detail ?? err.error ?? `Whisper error (${res.status})`));
+      }
+
+      const data = await res.json() as { text: string; words: Array<{ word: string; start: number; end: number }> };
+
+      setTranscriptionProgress({ phase: "transcribing", progress: 80, message: "Building captions..." });
+
+      // Group words into subtitle blocks, offset by clipStart
+      const subtitles = groupWordsToSubtitles(data.words, clipStart);
+      if (subtitles.length === 0 && data.text) {
+        addSubtitle({ id: `pc-${Date.now()}-0`, text: data.text, startTime: clipStart, endTime: clipEnd, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+      } else {
+        for (let i = 0; i < subtitles.length; i++) {
+          addSubtitle({ id: `pc-${Date.now()}-${i}`, ...subtitles[i], animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+        }
+      }
+
+      setTranscriptionProgress({ phase: "complete", progress: 100, message: `Added ${subtitles.length || 1} subtitles` });
+      setTimeout(() => { setTranscriptionProgress(null); setIsTranscribing(false); }, 2000);
     } catch (error) {
       console.error("[Subtitles] Transcription failed:", error);
-      setTranscriptionProgress({
-        phase: "error",
-        progress: 0,
-        message:
-          error instanceof Error ? error.message : "Transcription failed",
-      });
-      setTimeout(() => {
-        setTranscriptionProgress(null);
-        setIsTranscribing(false);
-      }, 3000);
+      setTranscriptionProgress({ phase: "error", progress: 0, message: error instanceof Error ? error.message : "Transcription failed" });
+      setTimeout(() => { setTranscriptionProgress(null); setIsTranscribing(false); }, 3000);
     }
   }, [
     selectedClip,
@@ -540,6 +631,7 @@ export const InspectorPanel: React.FC = () => {
     addSubtitle,
     defaultAnimationStyle,
     targetLanguage,
+    project.timeline.tracks,
   ]);
 
   const handleSRTImport = useCallback(
