@@ -364,7 +364,7 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       {
         name: "openreel-settings",
-        version: 7,
+        version: 8,
         migrate: (persisted, version) => {
           const next = (persisted ?? {}) as Record<string, unknown>;
           if (version < 2) next.mcpAutoAllowTrustedLocal = true;
@@ -394,6 +394,15 @@ export const useSettingsStore = create<SettingsState>()(
                 : typeof next.llmModel === "string"
                   ? next.llmModel
                   : "";
+          }
+          if (version < 8) {
+            // Fork: migrate localhost defaults to the LAN addresses of the local AI box.
+            if (!next.ollamaHost || next.ollamaHost === "http://localhost:11434") {
+              next.ollamaHost = "http://192.168.10.182:47580";
+            }
+            if (!next.comfyuiHost || next.comfyuiHost === "http://localhost:8188") {
+              next.comfyuiHost = "http://192.168.10.182:8188";
+            }
           }
           return next as unknown as SettingsState;
         },
