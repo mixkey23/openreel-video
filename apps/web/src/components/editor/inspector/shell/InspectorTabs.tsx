@@ -34,15 +34,15 @@ export const InspectorTabs: React.FC<InspectorTabsProps> = ({ tabs, activeId, on
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, index)}
+            title={tab.label}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-2 text-[12px] font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
+              "flex items-center justify-center px-2.5 py-2 text-[11px] font-medium whitespace-nowrap transition-colors border-b-2 -mb-px shrink-0",
               active
                 ? "text-accent border-accent"
                 : "text-fg-3 border-transparent hover:text-fg",
             )}
           >
-            <Icon size={13} />
-            <span>{tab.label}</span>
+            <Icon size={14} />
           </button>
         );
       })}
