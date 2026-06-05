@@ -55,13 +55,21 @@ export async function ensureCaptionsTrack(): Promise<string | null> {
   return captionsTrack.id;
 }
 
-/** Group whisper word array into subtitle blocks (max 10 words / 5 s), offset by clipStart. */
+export interface SubtitleBlock {
+  text: string;
+  startTime: number;
+  endTime: number;
+  words: Array<{ text: string; startTime: number; endTime: number }>;
+}
+
+/** Group whisper word array into subtitle blocks (max 10 words / 5 s), offset by clipStart.
+ *  Each block includes per-word timestamps so animation styles (karaoke, bounce, etc.) work. */
 export function groupWordsToSubtitles(
   words: Array<{ word: string; start: number; end: number }>,
   clipStart: number,
-): Array<{ text: string; startTime: number; endTime: number }> {
+): SubtitleBlock[] {
   if (!words?.length) return [];
-  const blocks: Array<{ text: string; startTime: number; endTime: number }> = [];
+  const blocks: SubtitleBlock[] = [];
   let chunk: typeof words = [];
   const flush = () => {
     if (!chunk.length) return;
@@ -69,6 +77,11 @@ export function groupWordsToSubtitles(
       text:      chunk.map((w) => w.word).join(" ").trim(),
       startTime: clipStart + chunk[0].start,
       endTime:   clipStart + chunk[chunk.length - 1].end,
+      words:     chunk.map((w) => ({
+        text:      w.word,
+        startTime: clipStart + w.start,
+        endTime:   clipStart + w.end,
+      })),
     });
     chunk = [];
   };
