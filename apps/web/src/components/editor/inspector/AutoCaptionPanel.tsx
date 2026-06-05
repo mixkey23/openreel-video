@@ -82,6 +82,7 @@ export const AutoCaptionPanel: React.FC = () => {
   const [tlTranslate, setTlTranslate]         = useState(false);
   const [tlTargetLang, setTlTargetLang]       = useState("en");
   const [tlResult, setTlResult]               = useState<string | null>(null);
+  const [tlHold, setTlHold]                   = useState(0.5);
   const [tlAudioSource, setTlAudioSource]     = useState<"audio-tracks" | "video-tracks">("audio-tracks");
   const [tlAudioTrackId, setTlAudioTrackId]   = useState("all");
   const [tlVideoTrackId, setTlVideoTrackId]   = useState("all");
@@ -221,7 +222,7 @@ export const AutoCaptionPanel: React.FC = () => {
           words: Array<{ word: string; start: number; end: number }>;
         };
 
-        const blocks = groupWordsToSubtitles(data.words, clip.startTime);
+        const blocks = groupWordsToSubtitles(data.words, clip.startTime, tlHold);
 
         if (blocks.length === 0 && data.text?.trim()) {
           const lastWordEnd = data.words?.length
@@ -231,7 +232,7 @@ export const AutoCaptionPanel: React.FC = () => {
             id:        `tl-${Date.now()}-${i}-0`,
             text:      data.text.trim(),
             startTime: clip.startTime,
-            endTime:   lastWordEnd,
+            endTime:   lastWordEnd + tlHold,
           } as Parameters<typeof addSubtitle>[0]);
           totalSubtitles++;
         } else {
@@ -256,7 +257,7 @@ export const AutoCaptionPanel: React.FC = () => {
     }
   }, [
     project, tlRangeStart, tlRangeEnd, tlLang, tlTranslate, tlTargetLang,
-    tlAudioSource, tlAudioTrackId, tlVideoTrackId,
+    tlAudioSource, tlAudioTrackId, tlVideoTrackId, tlHold,
     whisperxModel, timelineDuration, addSubtitle, applySubtitleStylePreset, selectedStyle,
   ]);
 
@@ -577,6 +578,25 @@ export const AutoCaptionPanel: React.FC = () => {
                 </Select>
               </div>
             )}
+          </div>
+
+          {/* Reading hold */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] text-text-secondary">
+                Reading Hold <span className="text-text-muted">(after speech)</span>
+              </label>
+              <span className="text-[10px] text-text-primary font-mono">
+                {tlHold === 0 ? "Off" : `${tlHold.toFixed(1)}s`}
+              </span>
+            </div>
+            <input
+              type="range" min={0} max={3} step={0.1}
+              value={tlHold}
+              disabled={tlStatus === "transcribing"}
+              onChange={(e) => setTlHold(parseFloat(e.target.value))}
+              className="w-full accent-primary"
+            />
           </div>
 
           {/* Model info */}

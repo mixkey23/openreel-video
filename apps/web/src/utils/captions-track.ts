@@ -63,10 +63,12 @@ export interface SubtitleBlock {
 }
 
 /** Group whisper word array into subtitle blocks (max 10 words / 5 s), offset by clipStart.
- *  Each block includes per-word timestamps so animation styles (karaoke, bounce, etc.) work. */
+ *  holdSeconds: extra time the subtitle stays visible after speech ends (reading time padding).
+ *  Hold is capped so blocks never overlap each other. */
 export function groupWordsToSubtitles(
   words: Array<{ word: string; start: number; end: number }>,
   clipStart: number,
+  holdSeconds = 0,
 ): SubtitleBlock[] {
   if (!words?.length) return [];
   const blocks: SubtitleBlock[] = [];
@@ -90,5 +92,16 @@ export function groupWordsToSubtitles(
     chunk.push(w);
   }
   flush();
+
+  // Apply hold padding — cap each block's endTime to just before next block starts
+  if (holdSeconds > 0) {
+    for (let i = 0; i < blocks.length; i++) {
+      const maxEnd = i + 1 < blocks.length
+        ? blocks[i + 1].startTime - 0.01   // don't overlap next block
+        : blocks[i].endTime + holdSeconds;   // last block: extend freely
+      blocks[i] = { ...blocks[i], endTime: Math.min(blocks[i].endTime + holdSeconds, maxEnd) };
+    }
+  }
+
   return blocks;
 }

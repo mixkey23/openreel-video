@@ -115,6 +115,7 @@ export const InspectorPanel: React.FC = () => {
   const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string>("all");
   const [defaultAnimationStyle, setDefaultAnimationStyle] =
     useState<CaptionAnimationStyle>("word-highlight");
+  const [subtitleHold, setSubtitleHold] = useState(0.5);
   const [expandedRecipeApplicationId, setExpandedRecipeApplicationId] =
     useState<string | null>(null);
   const [recipeControlValues, setRecipeControlValues] = useState<
@@ -545,13 +546,12 @@ export const InspectorPanel: React.FC = () => {
         const data = await res.json() as { text: string; words: Array<{ word: string; start: number; end: number }> };
         console.info("[Subtitles DEBUG] raw whisper response:", JSON.stringify(data, null, 2));
         console.info("[Subtitles DEBUG] words array:", data.words);
-        const blocks = groupWordsToSubtitles(data.words, ac.startTime);
+        const blocks = groupWordsToSubtitles(data.words, ac.startTime, subtitleHold);
         console.info("[Subtitles DEBUG] grouped blocks:", JSON.stringify(blocks, null, 2));
 
         if (blocks.length === 0 && data.text?.trim()) {
-          // Use last word's end time if available; fallback to clip end
           const lastWordEnd = data.words?.length ? ac.startTime + data.words[data.words.length - 1].end : ac.startTime + ac.duration;
-          addSubtitle({ id: `pc-${Date.now()}-${i}-0`, text: data.text.trim(), startTime: ac.startTime, endTime: lastWordEnd, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+          addSubtitle({ id: `pc-${Date.now()}-${i}-0`, text: data.text.trim(), startTime: ac.startTime, endTime: lastWordEnd + subtitleHold, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
           totalSubtitles++;
         } else {
           for (let j = 0; j < blocks.length; j++) {
@@ -940,6 +940,8 @@ export const InspectorPanel: React.FC = () => {
                 audioTracks={project.timeline.tracks.filter((t) => t.type === "audio")}
                 selectedAudioTrackId={selectedAudioTrackId}
                 setSelectedAudioTrackId={setSelectedAudioTrackId}
+                subtitleHold={subtitleHold}
+                setSubtitleHold={setSubtitleHold}
               />
             </InspectorTabPanel>
 

@@ -51,6 +51,8 @@ export interface AiTabProps {
   audioTracks: Track[];
   selectedAudioTrackId: string;
   setSelectedAudioTrackId: React.Dispatch<React.SetStateAction<string>>;
+  subtitleHold: number;
+  setSubtitleHold: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export const AiTab: React.FC<AiTabProps> = ({
@@ -79,6 +81,8 @@ export const AiTab: React.FC<AiTabProps> = ({
   audioTracks,
   selectedAudioTrackId,
   setSelectedAudioTrackId,
+  subtitleHold,
+  setSubtitleHold,
 }) => {
   return (
     <>
@@ -222,6 +226,26 @@ export const AiTab: React.FC<AiTabProps> = ({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Reading hold time */}
+              <div>
+                <label className="text-[10px] text-text-secondary block mb-1">
+                  Reading Hold <span className="text-text-muted">(extra time after speech)</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0} max={3} step={0.1}
+                    value={subtitleHold}
+                    disabled={isTranscribing}
+                    onChange={(e) => setSubtitleHold(parseFloat(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <span className="text-[10px] text-text-primary w-8 text-right font-mono">
+                    {subtitleHold === 0 ? "Off" : `${subtitleHold.toFixed(1)}s`}
+                  </span>
+                </div>
               </div>
 
               {transcriptionProgress ? (
