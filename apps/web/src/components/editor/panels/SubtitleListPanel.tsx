@@ -54,33 +54,48 @@ function hexFromColor(color: string): string {
   return "#ffffff";
 }
 
+const DEFAULT_GLOBAL_STYLE: SubtitleStyle = {
+  fontFamily:      "Inter",
+  fontSize:        48,
+  color:           "#ffffff",
+  backgroundColor: "rgba(0, 0, 0, 0.5)",
+  position:        "bottom",
+  highlightColor:  "#ffff00",
+};
+
+function styleFromSubtitles(subtitles: ReturnType<typeof useProjectStore.getState>["project"]["timeline"]["subtitles"]): SubtitleStyle {
+  const first = subtitles.find((s) => s.style);
+  if (!first?.style) return DEFAULT_GLOBAL_STYLE;
+  return { ...DEFAULT_GLOBAL_STYLE, ...first.style };
+}
+
 export const SubtitleListPanel: React.FC = () => {
-  const subtitles          = useProjectStore((s) => s.project.timeline.subtitles);
-  const removeSubtitle     = useProjectStore((s) => s.removeSubtitle);
-  const updateSubtitle     = useProjectStore((s) => s.updateSubtitle);
-  const applyPreset        = useProjectStore((s) => s.applySubtitleStylePreset);
-  const select             = useUIStore((s) => s.select);
-  const selectedItems      = useUIStore((s) => s.selectedItems);
+  const subtitles      = useProjectStore((s) => s.project.timeline.subtitles);
+  const removeSubtitle = useProjectStore((s) => s.removeSubtitle);
+  const updateSubtitle = useProjectStore((s) => s.updateSubtitle);
+  const applyPreset    = useProjectStore((s) => s.applySubtitleStylePreset);
+  const select         = useUIStore((s) => s.select);
+  const selectedItems  = useUIStore((s) => s.selectedItems);
 
   const [styleOpen, setStyleOpen] = useState(true);
+  const [draft, setDraft]         = useState<SubtitleStyle>(() => styleFromSubtitles(subtitles));
 
-  // ── Derive "current global style" from first subtitle (if any), else defaults
-  const first = subtitles[0];
-  const curStyle: SubtitleStyle = {
-    fontFamily:      first?.style?.fontFamily      ?? "Inter",
-    fontSize:        first?.style?.fontSize        ?? 24,
-    color:           first?.style?.color           ?? "#ffffff",
-    backgroundColor: first?.style?.backgroundColor ?? "transparent",
-    position:        first?.style?.position        ?? "bottom",
-    highlightColor:  first?.style?.highlightColor  ?? "#ffff00",
+  const { hex: bgHex, alpha: bgAlpha } = extractBgColor(draft.backgroundColor);
+
+  const set_ = (patch: Partial<SubtitleStyle>) =>
+    setDraft((prev) => ({ ...prev, ...patch }));
+
+  const applyToAll = () => {
+    for (const sub of subtitles) {
+      updateSubtitle(sub.id, { style: draft });
+    }
   };
 
-  const { hex: bgHex, alpha: bgAlpha } = extractBgColor(curStyle.backgroundColor);
-
-  const applyToAll = (patch: Partial<SubtitleStyle>) => {
-    for (const sub of subtitles) {
-      updateSubtitle(sub.id, { style: { ...curStyle, ...patch } as SubtitleStyle });
-    }
+  const handlePreset = async (name: string) => {
+    await applyPreset(name);
+    // Sync draft to the newly applied style
+    const updated = useProjectStore.getState().project.timeline.subtitles;
+    setDraft(styleFromSubtitles(updated));
   };
 
   const sorted = [...subtitles].sort((a, b) => a.startTime - b.startTime);
@@ -107,7 +122,7 @@ export const SubtitleListPanel: React.FC = () => {
               <select
                 className="w-full bg-background-secondary border border-border rounded px-2 py-1 text-[11px] text-text-primary"
                 defaultValue=""
-                onChange={(e) => { if (e.target.value) applyPreset(e.target.value); }}
+                onChange={(e) => { if (e.target.value) handlePreset(e.target.value); }}
               >
                 <option value="" disabled>Apply preset…</option>
                 {PRESET_NAMES.map((p) => (
@@ -123,9 +138,9 @@ export const SubtitleListPanel: React.FC = () => {
                 {(["top", "center", "bottom"] as const).map((pos) => (
                   <button
                     key={pos}
-                    onClick={() => applyToAll({ position: pos })}
+                    onClick={() => set_({ position: pos })}
                     className={`flex-1 py-1 rounded text-[10px] transition-colors ${
-                      curStyle.position === pos
+                      draft.position === pos
                         ? "bg-primary text-white font-medium"
                         : "bg-background-secondary border border-border text-text-secondary hover:text-text-primary"
                     }`}
@@ -136,29 +151,27 @@ export const SubtitleListPanel: React.FC = () => {
               </div>
             </div>
 
-            {/* Font size */}
+            {/* Font size + Text color */}
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="text-[9px] text-text-muted uppercase tracking-wider block mb-1">Font Size</label>
                 <input
-                  type="number" min={12} max={72}
-                  value={curStyle.fontSize}
-                  onChange={(e) => applyToAll({ fontSize: parseInt(e.target.value) || 24 })}
+                  type="number" min={12} max={200}
+                  value={draft.fontSize}
+                  onChange={(e) => set_({ fontSize: parseInt(e.target.value) || 48 })}
                   className="w-full bg-background-secondary border border-border rounded px-2 py-1 text-[11px] text-text-primary"
                 />
               </div>
-
-              {/* Text color */}
               <div className="flex-1">
                 <label className="text-[9px] text-text-muted uppercase tracking-wider block mb-1">Text Color</label>
                 <div className="flex gap-1 items-center">
                   <input
                     type="color"
-                    value={hexFromColor(curStyle.color)}
-                    onChange={(e) => applyToAll({ color: e.target.value })}
+                    value={hexFromColor(draft.color)}
+                    onChange={(e) => set_({ color: e.target.value })}
                     className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent p-0"
                   />
-                  <span className="text-[10px] text-text-secondary font-mono">{hexFromColor(curStyle.color)}</span>
+                  <span className="text-[10px] text-text-secondary font-mono">{hexFromColor(draft.color)}</span>
                 </div>
               </div>
             </div>
@@ -171,12 +184,12 @@ export const SubtitleListPanel: React.FC = () => {
                   type="color"
                   value={bgAlpha === "transparent" ? "#000000" : bgHex}
                   disabled={bgAlpha === "transparent"}
-                  onChange={(e) => applyToAll({ backgroundColor: buildBgColor(e.target.value, bgAlpha === "transparent" ? "0.5" : bgAlpha) })}
+                  onChange={(e) => set_({ backgroundColor: buildBgColor(e.target.value, bgAlpha === "transparent" ? "0.5" : bgAlpha) })}
                   className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent p-0 disabled:opacity-30"
                 />
                 <select
                   value={bgAlpha}
-                  onChange={(e) => applyToAll({ backgroundColor: buildBgColor(bgHex, e.target.value) })}
+                  onChange={(e) => set_({ backgroundColor: buildBgColor(bgHex, e.target.value) })}
                   className="flex-1 bg-background-secondary border border-border rounded px-1 py-1 text-[10px] text-text-primary"
                 >
                   {BG_OPACITIES.map((o) => (
@@ -192,13 +205,22 @@ export const SubtitleListPanel: React.FC = () => {
               <div className="flex gap-1 items-center">
                 <input
                   type="color"
-                  value={curStyle.highlightColor ?? "#ffff00"}
-                  onChange={(e) => applyToAll({ highlightColor: e.target.value })}
+                  value={draft.highlightColor ?? "#ffff00"}
+                  onChange={(e) => set_({ highlightColor: e.target.value })}
                   className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent p-0"
                 />
-                <span className="text-[10px] text-text-secondary font-mono">{curStyle.highlightColor ?? "#ffff00"}</span>
+                <span className="text-[10px] text-text-secondary font-mono">{draft.highlightColor ?? "#ffff00"}</span>
               </div>
             </div>
+
+            {/* Apply button */}
+            <button
+              onClick={applyToAll}
+              disabled={subtitles.length === 0}
+              className="w-full py-1.5 bg-primary hover:bg-primary/80 disabled:opacity-40 text-black rounded text-[11px] font-medium transition-colors"
+            >
+              Apply to All Subtitles
+            </button>
 
           </div>
         )}
