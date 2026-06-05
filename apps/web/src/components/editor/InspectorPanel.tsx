@@ -543,10 +543,10 @@ export const InspectorPanel: React.FC = () => {
         }
 
         const data = await res.json() as { text: string; words: Array<{ word: string; start: number; end: number }> };
-        console.debug("[Subtitles DEBUG] raw whisper response:", JSON.stringify(data, null, 2));
-        console.debug("[Subtitles DEBUG] words array:", data.words);
+        console.info("[Subtitles DEBUG] raw whisper response:", JSON.stringify(data, null, 2));
+        console.info("[Subtitles DEBUG] words array:", data.words);
         const blocks = groupWordsToSubtitles(data.words, ac.startTime);
-        console.debug("[Subtitles DEBUG] grouped blocks:", JSON.stringify(blocks, null, 2));
+        console.info("[Subtitles DEBUG] grouped blocks:", JSON.stringify(blocks, null, 2));
 
         if (blocks.length === 0 && data.text?.trim()) {
           addSubtitle({ id: `pc-${Date.now()}-${i}-0`, text: data.text.trim(), startTime: ac.startTime, endTime: ac.startTime + ac.duration, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
