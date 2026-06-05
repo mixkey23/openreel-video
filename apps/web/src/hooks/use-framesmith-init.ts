@@ -189,6 +189,19 @@ export function useFramesmithInit() {
           const mediaItem = items[items.length - 1];
           if (!mediaItem) continue;
 
+          // Store the source URL so restore can re-fetch the blob
+          useProjectStore.setState((state) => ({
+            project: {
+              ...state.project,
+              mediaLibrary: {
+                ...state.project.mediaLibrary,
+                items: state.project.mediaLibrary.items.map((it) =>
+                  it.id === mediaItem.id ? { ...it, originalUrl: clip.url! } : it,
+                ),
+              },
+            },
+          }));
+
           const startTime = clip.start_time ?? 0;
           const addResult = await addClip(videoTrack.id, mediaItem.id, startTime);
           if (addResult.success) {
@@ -227,6 +240,19 @@ export function useFramesmithInit() {
           const items = useProjectStore.getState().project.mediaLibrary.items;
           const mediaItem = items[items.length - 1];
           if (!mediaItem) continue;
+
+          // Store the source URL so restore can re-fetch the blob
+          useProjectStore.setState((state) => ({
+            project: {
+              ...state.project,
+              mediaLibrary: {
+                ...state.project.mediaLibrary,
+                items: state.project.mediaLibrary.items.map((it) =>
+                  it.id === mediaItem.id ? { ...it, originalUrl: clip.audioUrl! } : it,
+                ),
+              },
+            },
+          }));
 
           const startTime = clip.start_time ?? 0;
           // Pass audioDuration explicitly so clip/add doesn't fall back to 5s default
