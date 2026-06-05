@@ -58,12 +58,18 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     description: "Local transcription with word-level timestamps (no API key required)",
     docsUrl: "https://github.com/m-bain/whisperX",
   },
+  {
+    id: "comfyui",
+    label: "ComfyUI",
+    description: "Local generative AI for images, video, and audio (no API key required)",
+    docsUrl: "https://github.com/comfyanonymous/ComfyUI",
+  },
 ] as const;
 
-export type TtsProvider = "piper" | "elevenlabs";
+export type TtsProvider = "piper" | "elevenlabs" | "comfyui";
 export type LlmProvider = "openai" | "anthropic" | "ollama";
 export type TranscriptionProvider = "whisperx";
-export type AggregatorProvider = "kie-ai" | "freepik";
+export type AggregatorProvider = "kie-ai" | "freepik" | "comfyui";
 export type SettingsTab = "general" | "api-keys" | "local-providers";
 
 export interface SettingsState {

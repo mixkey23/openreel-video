@@ -22,6 +22,7 @@ interface UseElevenLabsApiReturn {
   isLoadingModels: boolean;
   generateWithElevenLabs: (text: string, voiceId: string, signal?: AbortSignal) => Promise<Blob>;
   generateWithPiper: (text: string, voice: string, speed: number, signal?: AbortSignal) => Promise<Blob>;
+  generateWithComfyUI: (text: string, workflowId: string, signal?: AbortSignal) => Promise<Blob>;
   enhanceViaLlm: (text: string, signal?: AbortSignal) => Promise<string>;
 }
 
@@ -210,6 +211,37 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
   const enhanceViaLlm = useCallback(async (inputText: string, signal?: AbortSignal): Promise<string> => {
     const llmProvider = defaultLlmProvider;
 
+    // Ollama is local — no session unlock or API key required
+    if (llmProvider === "ollama") {
+      const { ollamaHost, ollamaModel } = useSettingsStore.getState();
+      const base = ollamaHost.replace(/\/$/, "");
+      const proxyBase = (typeof window !== "undefined" && window.location.protocol === "https:")
+        ? `/api/proxy/ollama`
+        : null;
+
+      const url = proxyBase
+        ? `/api/proxy/ollama/chat?host=${encodeURIComponent(ollamaHost)}`
+        : `${base}/api/chat`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel,
+          stream: false,
+          messages: [
+            { role: "system", content: ENHANCE_SYSTEM_PROMPT },
+            { role: "user", content: inputText },
+          ],
+        }),
+        signal,
+      });
+
+      if (!res.ok) throw new Error(`Ollama error (${res.status})`);
+      const data = await res.json() as { message?: { content: string } };
+      return data.message?.content ?? inputText;
+    }
+
     if (!isSessionUnlocked()) {
       throw new Error("Session locked. Unlock in Settings > API Keys to use text enhancement.");
     }
@@ -269,6 +301,66 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     return choices?.[0]?.message?.content ?? inputText;
   }, [defaultLlmProvider]);
 
+  const generateWithComfyUI = useCallback(async (inputText: string, workflowId: string, signal?: AbortSignal): Promise<Blob> => {
+    const { comfyuiHost } = useSettingsStore.getState();
+    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+    const promptUrl = isHttps
+      ? `/api/proxy/comfyui/prompt?host=${encodeURIComponent(comfyuiHost)}`
+      : `${comfyuiHost.replace(/\/$/, "")}/prompt`;
+
+    // Queue the workflow with the TTS text injected
+    const queueRes = await fetch(promptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: { workflowId, inputs: { text: inputText } },
+        client_id: `openreel-tts-${Date.now()}`,
+      }),
+      signal,
+    });
+
+    if (!queueRes.ok) throw new Error(`ComfyUI queue error (${queueRes.status})`);
+    const { prompt_id } = await queueRes.json() as { prompt_id: string };
+
+    // Poll history until done (max 3 min)
+    const deadline = Date.now() + 180_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const histUrl = isHttps
+        ? `/api/proxy/comfyui/history/${prompt_id}?host=${encodeURIComponent(comfyuiHost)}`
+        : `${comfyuiHost.replace(/\/$/, "")}/history/${prompt_id}`;
+      const histRes = await fetch(histUrl, { signal });
+      if (!histRes.ok) continue;
+
+      const history = await histRes.json() as Record<string, {
+        status: { status_str: string };
+        outputs: Record<string, { audio?: Array<{ filename: string; subfolder: string; type: string }> }>;
+      }>;
+
+      const exec = history[prompt_id];
+      if (!exec) continue;
+      if (exec.status.status_str === "failed" || exec.status.status_str === "error") {
+        throw new Error("ComfyUI audio generation failed");
+      }
+      if (exec.status.status_str !== "success" && exec.status.status_str !== "done") continue;
+
+      // Find first audio output
+      for (const node of Object.values(exec.outputs)) {
+        const audioFile = node.audio?.[0];
+        if (!audioFile) continue;
+        const viewUrl = isHttps
+          ? `/api/proxy/comfyui/view?filename=${audioFile.filename}&subfolder=${audioFile.subfolder}&type=${audioFile.type}&host=${encodeURIComponent(comfyuiHost)}`
+          : `${comfyuiHost.replace(/\/$/, "")}/view?filename=${audioFile.filename}&subfolder=${audioFile.subfolder}&type=${audioFile.type}`;
+        const audioRes = await fetch(viewUrl, { signal });
+        if (!audioRes.ok) throw new Error("Failed to download ComfyUI audio output");
+        return audioRes.blob();
+      }
+      throw new Error("ComfyUI workflow completed but no audio output found");
+    }
+
+    throw new Error("ComfyUI audio generation timed out");
+  }, []);
+
   return {
     allVoices,
     allModels,
@@ -276,6 +368,7 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
     isLoadingModels,
     generateWithElevenLabs,
     generateWithPiper,
+    generateWithComfyUI,
     enhanceViaLlm,
   };
 }

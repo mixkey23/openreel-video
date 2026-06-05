@@ -8,6 +8,7 @@ import type { ElevenLabsVoice } from "../tts-types";
 interface UseTtsActionsOptions {
   provider: TtsProvider;
   selectedVoice: string;
+  selectedWorkflow: string;
   text: string;
   speed: number;
   enhanceText: boolean;
@@ -16,6 +17,7 @@ interface UseTtsActionsOptions {
   favoriteVoices: Array<{ voiceId: string; name: string; previewUrl?: string }>;
   generateWithElevenLabs: (text: string, voiceId: string, signal?: AbortSignal) => Promise<Blob>;
   generateWithPiper: (text: string, voice: string, speed: number, signal?: AbortSignal) => Promise<Blob>;
+  generateWithComfyUI: (text: string, workflowId: string, signal?: AbortSignal) => Promise<Blob>;
   enhanceViaLlm: (text: string, signal?: AbortSignal) => Promise<string>;
   setText: (text: string) => void;
   setError: (error: string | null) => void;
@@ -45,6 +47,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
   const {
     provider,
     selectedVoice,
+    selectedWorkflow,
     text,
     speed,
     enhanceText,
@@ -53,6 +56,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
     favoriteVoices,
     generateWithElevenLabs,
     generateWithPiper,
+    generateWithComfyUI,
     enhanceViaLlm,
     setText,
     setError,
@@ -172,7 +176,9 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
       const blob = provider === "elevenlabs"
         ? await generateWithElevenLabs(finalText, selectedVoice, controller.signal)
-        : await generateWithPiper(finalText, selectedVoice, speed, controller.signal);
+        : provider === "comfyui"
+          ? await generateWithComfyUI(finalText, selectedWorkflow, controller.signal)
+          : await generateWithPiper(finalText, selectedVoice, speed, controller.signal);
 
       storeSetAudio(blob);
 

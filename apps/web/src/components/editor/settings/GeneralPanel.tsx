@@ -61,7 +61,10 @@ export const GeneralPanel: React.FC = () => {
   const ttsProviders = [
     { id: "piper", label: "Piper (Free / Built-in)" },
     ...SERVICE_REGISTRY.filter(
-      (s) => s.id === "elevenlabs" || configuredServices.includes(s.id),
+      (s) =>
+        s.id === "elevenlabs" ||
+        s.id === "comfyui" ||           // always show: local, no API key
+        configuredServices.includes(s.id),
     ),
   ];
 
@@ -77,6 +80,7 @@ export const GeneralPanel: React.FC = () => {
     (s) =>
       s.id === "kie-ai" ||
       s.id === "freepik" ||
+      s.id === "comfyui" ||           // always show: local, no API key
       configuredServices.includes(s.id),
   );
 

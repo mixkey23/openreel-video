@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Mic,
   Loader2,
@@ -6,8 +6,16 @@ import {
   Settings,
   Sparkles,
   AlertTriangle,
+  Workflow,
 } from "lucide-react";
 import { Slider, Switch } from "@openreel/ui";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@openreel/ui";
 import { toast } from "../../../stores/notification-store";
 import { useSettingsStore, type TtsProvider } from "../../../stores/settings-store";
 import { useElevenLabsApi } from "./hooks/useElevenLabsApi";
@@ -27,6 +35,7 @@ export const TextToSpeechPanel: React.FC = () => {
     configuredServices,
     elevenLabsModel,
     favoriteVoices,
+    comfyuiHost,
   } = useSettingsStore();
 
   const hasElevenLabsKey = configuredServices.includes("elevenlabs");
@@ -34,7 +43,9 @@ export const TextToSpeechPanel: React.FC = () => {
   const defaultProvider: TtsProvider =
     defaultTtsProvider === "elevenlabs" && hasElevenLabsKey
       ? "elevenlabs"
-      : "piper";
+      : defaultTtsProvider === "comfyui"
+        ? "comfyui"
+        : "piper";
 
   const [provider, setProvider] = useState<TtsProvider>(defaultProvider);
   const [text, setText] = useState("");
@@ -43,6 +54,9 @@ export const TextToSpeechPanel: React.FC = () => {
       ? favoriteVoices[0].voiceId
       : "amy",
   );
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string>("");
+  const [audioWorkflows, setAudioWorkflows] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false);
   const [speed, setSpeed] = useState(1.0);
   const [error, setError] = useState<string | null>(null);
   const [enhanceText, setEnhanceText] = useState(false);
@@ -55,6 +69,7 @@ export const TextToSpeechPanel: React.FC = () => {
     isLoadingModels,
     generateWithElevenLabs,
     generateWithPiper,
+    generateWithComfyUI,
     enhanceViaLlm,
   } = useElevenLabsApi({
     provider,
@@ -63,6 +78,27 @@ export const TextToSpeechPanel: React.FC = () => {
     elevenLabsModel,
     defaultLlmProvider,
   });
+
+  // Load ComfyUI audio workflows when provider switches to comfyui
+  useEffect(() => {
+    if (provider !== "comfyui") return;
+    setIsLoadingWorkflows(true);
+    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+    const url = isHttps
+      ? `/api/proxy/comfyui/workflows?host=${encodeURIComponent(comfyuiHost)}`
+      : `${comfyuiHost.replace(/\/$/, "")}/openreel/workflows`;
+
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        const list = (data as Array<{ id: string; name: string; category?: string }>)
+          .filter((w) => w.category === "audio" || !w.category);
+        setAudioWorkflows(list);
+        if (list.length > 0 && !selectedWorkflow) setSelectedWorkflow(list[0].id);
+      })
+      .catch(() => setAudioWorkflows([]))
+      .finally(() => setIsLoadingWorkflows(false));
+  }, [provider, comfyuiHost, selectedWorkflow]);
 
   const {
     isGenerating,
@@ -84,6 +120,7 @@ export const TextToSpeechPanel: React.FC = () => {
   } = useTtsActions({
     provider,
     selectedVoice,
+    selectedWorkflow,
     text,
     speed,
     enhanceText,
@@ -92,6 +129,7 @@ export const TextToSpeechPanel: React.FC = () => {
     favoriteVoices,
     generateWithElevenLabs,
     generateWithPiper,
+    generateWithComfyUI,
     enhanceViaLlm,
     setText,
     setError,
@@ -125,6 +163,14 @@ export const TextToSpeechPanel: React.FC = () => {
   const charCount = text.length;
   const maxChars = 5000;
 
+  const isComfyUIReady = provider === "comfyui" && selectedWorkflow;
+  const generateDisabled =
+    isGenerating ||
+    !text.trim() ||
+    (provider === "elevenlabs" && !selectedVoice) ||
+    (provider === "comfyui" && !isComfyUIReady) ||
+    (enhanceText && provider === "elevenlabs" && !enhancedPreview);
+
   return (
     <div className="space-y-3 w-full min-w-0 max-w-full">
       <audio ref={audioRef as React.RefObject<HTMLAudioElement>} onEnded={handleAudioEnded} className="hidden" />
@@ -133,9 +179,7 @@ export const TextToSpeechPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <Mic size={16} className="text-primary" />
           <div>
-            <span className="text-[11px] font-medium text-text-primary">
-              Text to Speech
-            </span>
+            <span className="text-[11px] font-medium text-text-primary">Text to Speech</span>
             <p className="text-[9px] text-text-muted">AI voice generation</p>
           </div>
         </div>
@@ -148,24 +192,20 @@ export const TextToSpeechPanel: React.FC = () => {
         </button>
       </div>
 
+      {/* Provider selector */}
       <div className="space-y-2">
-        <label className="text-[10px] font-medium text-text-secondary">
-          Provider
-        </label>
-        <div className="flex gap-1.5">
+        <label className="text-[10px] font-medium text-text-secondary">Provider</label>
+        <div className="flex gap-1.5 flex-wrap">
           {TTS_PROVIDERS.map((p) => {
             const isDisabled = p.id === "elevenlabs" && !hasElevenLabsKey;
             return (
               <button
                 key={p.id}
                 onClick={() => {
-                  if (isDisabled) {
-                    openSettings("api-keys");
-                    return;
-                  }
+                  if (isDisabled) { openSettings("api-keys"); return; }
                   handleProviderSwitch(p.id);
                 }}
-                className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] transition-colors ${
+                className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] transition-colors min-w-[70px] ${
                   provider === p.id
                     ? "bg-primary text-white font-medium"
                     : isDisabled
@@ -185,10 +225,39 @@ export const TextToSpeechPanel: React.FC = () => {
         <ModelSelector allModels={allModels} isLoadingModels={isLoadingModels} />
       )}
 
+      {/* ComfyUI: workflow selector */}
+      {provider === "comfyui" && (
+        <div className="space-y-2">
+          <label className="text-[10px] font-medium text-text-secondary flex items-center gap-1">
+            <Workflow size={10} />
+            Audio Workflow
+          </label>
+          {isLoadingWorkflows ? (
+            <div className="flex items-center gap-2 text-text-muted text-[10px]">
+              <Loader2 size={12} className="animate-spin" /> Loading workflows...
+            </div>
+          ) : audioWorkflows.length === 0 ? (
+            <p className="text-[9px] text-amber-400 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              No audio workflows found. Add workflows with category "audio" in ComfyUI.
+            </p>
+          ) : (
+            <Select value={selectedWorkflow} onValueChange={setSelectedWorkflow}>
+              <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[10px]">
+                <SelectValue placeholder="Select a workflow" />
+              </SelectTrigger>
+              <SelectContent className="bg-background-secondary border-border">
+                {audioWorkflows.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {/* Text input */}
       <div className="space-y-2">
-        <label className="text-[10px] font-medium text-text-secondary">
-          Text
-        </label>
+        <label className="text-[10px] font-medium text-text-secondary">Text</label>
         <textarea
           value={text}
           onChange={(e) => { setText(e.target.value); setEnhancedPreview(null); }}
@@ -199,11 +268,7 @@ export const TextToSpeechPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           {provider === "elevenlabs" ? (
             <div className="flex items-center gap-1.5">
-              <Switch
-                checked={enhanceText}
-                onCheckedChange={setEnhanceText}
-                className="scale-75 origin-left"
-              />
+              <Switch checked={enhanceText} onCheckedChange={setEnhanceText} className="scale-75 origin-left" />
               <label className="text-[9px] text-text-muted flex items-center gap-1 cursor-pointer" onClick={() => setEnhanceText(!enhanceText)}>
                 <Sparkles size={10} className={enhanceText ? "text-amber-400" : ""} />
                 Enhance for TTS
@@ -226,13 +291,15 @@ export const TextToSpeechPanel: React.FC = () => {
         )}
       </div>
 
-      <VoiceBrowser
-        provider={provider}
-        selectedVoice={selectedVoice}
-        onSelectVoice={setSelectedVoice}
-        allVoices={allVoices}
-        isLoadingVoices={isLoadingVoices}
-      />
+      {provider !== "comfyui" && (
+        <VoiceBrowser
+          provider={provider}
+          selectedVoice={selectedVoice}
+          onSelectVoice={setSelectedVoice}
+          allVoices={allVoices}
+          isLoadingVoices={isLoadingVoices}
+        />
+      )}
 
       {provider === "piper" && (
         <div className="space-y-2">
@@ -242,9 +309,7 @@ export const TextToSpeechPanel: React.FC = () => {
           </div>
           <Slider min={0.5} max={2.0} step={0.1} value={[speed]} onValueChange={(value) => setSpeed(value[0])} />
           <div className="flex justify-between text-[8px] text-text-muted">
-            <span>0.5x</span>
-            <span>1.0x</span>
-            <span>2.0x</span>
+            <span>0.5x</span><span>1.0x</span><span>2.0x</span>
           </div>
         </div>
       )}
@@ -285,7 +350,7 @@ export const TextToSpeechPanel: React.FC = () => {
 
       <button
         onClick={generateSpeech}
-        disabled={isGenerating || !text.trim() || (provider === "elevenlabs" && !selectedVoice) || (enhanceText && provider === "elevenlabs" && !enhancedPreview)}
+        disabled={generateDisabled}
         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg text-[11px] font-medium transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isGenerating ? (
@@ -318,8 +383,12 @@ export const TextToSpeechPanel: React.FC = () => {
       )}
 
       <p className="text-[9px] text-text-muted text-center">
-        Powered by {provider === "elevenlabs" ? "ElevenLabs" : "Piper TTS"}
-        {provider === "elevenlabs" && ` · ${getSelectedModelName()}`}
+        Powered by{" "}
+        {provider === "elevenlabs"
+          ? `ElevenLabs · ${getSelectedModelName()}`
+          : provider === "comfyui"
+            ? "ComfyUI (local)"
+            : "Piper TTS"}
       </p>
     </div>
   );
