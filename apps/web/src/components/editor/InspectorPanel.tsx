@@ -51,6 +51,7 @@ import { AnimateTab } from "./inspector/tabs/AnimateTab";
 import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
+import { InfoTab } from "./inspector/tabs/InfoTab";
 import { TransitionInspector } from "./inspector/TransitionInspector";
 import { MultiClipInspector } from "./inspector/MultiClipInspector";
 import { QuickEditBar } from "./QuickEditBar";
@@ -889,6 +890,17 @@ export const InspectorPanel: React.FC = () => {
         ) : selectedClip ? (
           <InspectorTabErrorBoundary key={clipId}>
             <div className="space-y-4">
+              {tabIds.includes("info") && (
+                <Section title="Clip Info" sectionId="clip-info" defaultOpen>
+                  <InfoTab
+                    clip={(selectedTimelineClip ?? selectedClip) as import("@openreel/core").Clip}
+                    mediaItem={project.mediaLibrary.items.find((m) => m.id === selectedClip.mediaId) ?? null}
+                    trackName={project.timeline.tracks.find((t) => t.id === selectedClip.trackId)?.name ?? ""}
+                    trackType={project.timeline.tracks.find((t) => t.id === selectedClip.trackId)?.type ?? ""}
+                  />
+                </Section>
+              )}
+
               {tabIds.includes("transform") && (
                 <TransformTab
                   clipId={clipId}
