@@ -24,7 +24,10 @@ export function useFramesmithAutosave() {
   const lastSynced = useRef<number>(0);
 
   useEffect(() => {
-    if (!framesmithEpisodeId) return;
+    if (!framesmithEpisodeId) {
+      console.debug("[Framesmith] autosave skip — no episodeId yet");
+      return;
+    }
     if (!modifiedAt) return;
     if (modifiedAt === lastSynced.current) return;
 
@@ -60,7 +63,7 @@ export function useFramesmithAutosave() {
         });
         if (res.ok) {
           lastSynced.current = modifiedAt;
-          console.debug("[Framesmith] Project synced to server");
+          console.info("[Framesmith] Project synced to server (episodeId=%s)", episodeId);
         } else {
           console.warn("[Framesmith] Server sync failed:", res.status);
         }
