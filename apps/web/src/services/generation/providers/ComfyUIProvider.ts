@@ -25,7 +25,7 @@ import type {
 } from "./types";
 import { workflowRegistry } from "./WorkflowRegistry";
 
-const DEFAULT_HOST = "http://localhost:8188";
+const DEFAULT_HOST = "http://192.168.10.182:8188";
 const POLL_INTERVAL = 500; // ms
 const MAX_POLL_TIME = 3600000; // 1 hour
 

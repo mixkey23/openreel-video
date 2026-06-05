@@ -313,7 +313,7 @@ export const LocalProvidersPanel: React.FC = () => {
               status={ollamaStatus}
               onTest={testOllama}
               testing={testingOllama}
-              placeholder="http://localhost:11434"
+              placeholder="http://192.168.10.182:47580"
             />
 
             <div className="space-y-1.5">
@@ -583,7 +583,7 @@ export const LocalProvidersPanel: React.FC = () => {
               status={comfyuiStatus}
               onTest={testComfyui}
               testing={testingComfyui}
-              placeholder="http://localhost:8188"
+              placeholder="http://192.168.10.182:8188"
             />
 
             <div className="grid grid-cols-2 gap-3">

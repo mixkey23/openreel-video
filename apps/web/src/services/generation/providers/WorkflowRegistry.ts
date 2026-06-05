@@ -15,7 +15,7 @@ export class WorkflowRegistry {
   private discoveryEndpoint: string | null = null;
   private refreshInterval: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(comfyuiHost: string = "http://localhost:8188") {
+  constructor(comfyuiHost: string = "http://192.168.10.182:8188") {
     this.comfyuiHost = comfyuiHost;
     this.initializeCategories();
   }

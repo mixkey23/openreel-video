@@ -172,7 +172,7 @@ export const useSettingsStore = create<SettingsState>()(
         configuredServices: [],
 
         // Local providers
-        ollamaHost: "http://localhost:11434",
+        ollamaHost: "http://192.168.10.182:47580",
         ollamaModel: "qwen2.5:14b-instruct",
         ollamaVisionModel: "qwen3-vl:4b",
         whisperxBaseUrl: "http://localhost:8000",
@@ -190,7 +190,7 @@ export const useSettingsStore = create<SettingsState>()(
         autoCutUseSilences: true,
 
         // ComfyUI
-        comfyuiHost: "http://localhost:8188",
+        comfyuiHost: "http://192.168.10.182:8188",
         comfyuiDefaultImageModel: "flux",
         comfyuiDefaultVideoModel: "ltx",
         comfyuiAutoDiscovery: true,
