@@ -153,7 +153,9 @@ export const AutoCaptionPanel: React.FC = () => {
         if (track.type !== "audio" || track.muted) continue;
         if (tlAudioTrackId !== "all" && track.id !== tlAudioTrackId) continue;
         for (const clip of track.clips) {
-          if (clip.startTime + clip.duration <= rangeStart || clip.startTime >= rangeEnd) continue;
+          const overlapStart = Math.max(clip.startTime, rangeStart);
+          const overlapEnd   = Math.min(clip.startTime + clip.duration, rangeEnd);
+          if (overlapEnd - overlapStart < 0.05) continue;
           const mi = (project as unknown as {
             mediaLibrary?: { items?: Array<{ id: string; blob: Blob | null; name: string }> };
           }).mediaLibrary?.items?.find((m) => m.id === clip.mediaId);
@@ -166,7 +168,9 @@ export const AutoCaptionPanel: React.FC = () => {
         if (track.type !== "video") continue;
         if (tlVideoTrackId !== "all" && track.id !== tlVideoTrackId) continue;
         for (const clip of track.clips) {
-          if (clip.startTime + clip.duration <= rangeStart || clip.startTime >= rangeEnd) continue;
+          const overlapStart = Math.max(clip.startTime, rangeStart);
+          const overlapEnd   = Math.min(clip.startTime + clip.duration, rangeEnd);
+          if (overlapEnd - overlapStart < 0.05) continue;
           const mi = (project as unknown as {
             mediaLibrary?: { items?: Array<{ id: string; blob: Blob | null; name: string }> };
           }).mediaLibrary?.items?.find((m) => m.id === clip.mediaId);
@@ -220,11 +224,14 @@ export const AutoCaptionPanel: React.FC = () => {
         const blocks = groupWordsToSubtitles(data.words, clip.startTime);
 
         if (blocks.length === 0 && data.text?.trim()) {
+          const lastWordEnd = data.words?.length
+            ? clip.startTime + data.words[data.words.length - 1].end
+            : clip.startTime + clip.duration;
           addSubtitle({
             id:        `tl-${Date.now()}-${i}-0`,
             text:      data.text.trim(),
             startTime: clip.startTime,
-            endTime:   clip.startTime + clip.duration,
+            endTime:   lastWordEnd,
           } as Parameters<typeof addSubtitle>[0]);
           totalSubtitles++;
         } else {

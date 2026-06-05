@@ -507,7 +507,10 @@ export const InspectorPanel: React.FC = () => {
         if (track.type !== "audio" || track.muted) continue;
         if (selectedAudioTrackId !== "all" && track.id !== selectedAudioTrackId) continue;
         for (const ac of track.clips) {
-          if (ac.startTime + ac.duration <= clipStart || ac.startTime >= clipEnd) continue;
+          // Require at least 50 ms of overlap to avoid float boundary clips
+          const overlapStart = Math.max(ac.startTime, clipStart);
+          const overlapEnd   = Math.min(ac.startTime + ac.duration, clipEnd);
+          if (overlapEnd - overlapStart < 0.05) continue;
           const mi = getMediaItem(ac.mediaId);
           if (mi?.blob) audioClips.push({ blob: mi.blob, startTime: ac.startTime, duration: ac.duration });
         }
@@ -546,7 +549,9 @@ export const InspectorPanel: React.FC = () => {
         console.info("[Subtitles DEBUG] grouped blocks:", JSON.stringify(blocks, null, 2));
 
         if (blocks.length === 0 && data.text?.trim()) {
-          addSubtitle({ id: `pc-${Date.now()}-${i}-0`, text: data.text.trim(), startTime: ac.startTime, endTime: ac.startTime + ac.duration, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+          // Use last word's end time if available; fallback to clip end
+          const lastWordEnd = data.words?.length ? ac.startTime + data.words[data.words.length - 1].end : ac.startTime + ac.duration;
+          addSubtitle({ id: `pc-${Date.now()}-${i}-0`, text: data.text.trim(), startTime: ac.startTime, endTime: lastWordEnd, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
           totalSubtitles++;
         } else {
           for (let j = 0; j < blocks.length; j++) {
