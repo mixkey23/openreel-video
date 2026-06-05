@@ -3,7 +3,7 @@ import {
   Search, Image as ImageIcon, Film, Music, Plus, Upload, Trash2,
   Square, Circle, Triangle, Star, ArrowRight, Hexagon, FileCode, AlertTriangle,
   RefreshCw, Palette, LayoutGrid, Grid2x2, List, Sparkles, Video,
-  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle,
+  Type, Shapes, Wand2, LayoutTemplate, Zap, Shuffle, Captions,
 } from "lucide-react";
 import {
   BACKGROUND_PRESETS,
@@ -22,6 +22,7 @@ import {
   EffectsPanel,
   TransitionsPanel,
 } from "./panels/EffectsTransitionsPanel";
+import { SubtitleListPanel } from "./panels/SubtitleListPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
@@ -61,7 +62,8 @@ type AssetsTab =
   | "transitions"
   | "ai"
   | "recipes"
-  | "templates";
+  | "templates"
+  | "subtitles";
 
 const ASSETS_TABS: ReadonlyArray<{
   value: AssetsTab;
@@ -108,6 +110,11 @@ const ASSETS_TABS: ReadonlyArray<{
     label: "Project Templates",
     description: "Load full-project starter layouts and presets.",
   },
+  {
+    value: "subtitles",
+    label: "Subtitles",
+    description: "Manage subtitle captions.",
+  },
 ] as const;
 
 const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
@@ -119,6 +126,7 @@ const TAB_ICONS: Record<AssetsTab, React.ElementType> = {
   ai: Sparkles,
   recipes: Wand2,
   templates: LayoutTemplate,
+  subtitles: Captions,
 };
 
 
@@ -1496,6 +1504,12 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
             <TemplatesTab />
+          </div>
+        );
+      case "subtitles":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border/70 bg-background-secondary content-area-fix">
+            <SubtitleListPanel />
           </div>
         );
       default:

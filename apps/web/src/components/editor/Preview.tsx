@@ -864,6 +864,7 @@ export const Preview: React.FC = () => {
   const motionPathMode = useUIStore((state) => state.motionPathMode);
   const motionPathClipId = useUIStore((state) => state.motionPathClipId);
   const select = useUIStore((state) => state.select);
+  const clearSelection = useUIStore((state) => state.clearSelection);
 
   const {
     playheadPosition,
@@ -5303,6 +5304,87 @@ export const Preview: React.FC = () => {
     [activeGraphicClips, getGraphicClipDisplayBounds],
   );
 
+  const findSubtitleAtPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!overlayRef.current) return null;
+      const overlayRect = overlayRef.current.getBoundingClientRect();
+      const pointX = clientX - overlayRect.left;
+      const pointY = clientY - overlayRect.top;
+
+      const activeSubtitles = getActiveSubtitles(allSubtitles, playheadPosition);
+      for (let i = activeSubtitles.length - 1; i >= 0; i--) {
+        const sub = activeSubtitles[i];
+
+        // Compute subtitle bounds for this subtitle (same logic as subtitleBounds memo)
+        if (!canvasRef.current) continue;
+        const canvas = canvasRef.current;
+        const overlay = overlayRef.current;
+        const canvasRect = canvas.getBoundingClientRect();
+
+        const fontSize = sub.style?.fontSize || 24;
+        const position = sub.style?.position || "bottom";
+        const lines = sub.text.split("\n");
+        const lineHeight = fontSize * 1.3;
+        const totalHeight = lines.length * lineHeight;
+
+        const canvasWidth = settings.width;
+        const canvasHeight = settings.height;
+
+        const canvasAspect = canvasWidth / canvasHeight;
+        const elementAspect = canvasRect.width / canvasRect.height;
+
+        let actualWidth: number;
+        let actualHeight: number;
+        let letterboxOffsetX = 0;
+        let letterboxOffsetY = 0;
+
+        if (elementAspect > canvasAspect) {
+          actualHeight = canvasRect.height;
+          actualWidth = actualHeight * canvasAspect;
+          letterboxOffsetX = (canvasRect.width - actualWidth) / 2;
+        } else {
+          actualWidth = canvasRect.width;
+          actualHeight = actualWidth / canvasAspect;
+          letterboxOffsetY = (canvasRect.height - actualHeight) / 2;
+        }
+
+        const displayScale = actualWidth / canvasWidth;
+
+        let baseY: number;
+        if (position === "top") {
+          baseY = fontSize * 2;
+        } else if (position === "center") {
+          baseY = canvasHeight / 2 - totalHeight / 2;
+        } else {
+          baseY = canvasHeight - fontSize * 2 - totalHeight;
+        }
+
+        const subtitleWidth = canvasWidth * 0.8 * displayScale;
+        const subtitleHeight = totalHeight * displayScale;
+
+        const canvasOffsetX = canvasRect.left - overlayRect.left + letterboxOffsetX;
+        const canvasOffsetY = canvasRect.top - overlayRect.top + letterboxOffsetY;
+
+        const centerX = canvasOffsetX + actualWidth / 2;
+        const topY = canvasOffsetY + baseY * displayScale;
+
+        const bx = centerX - subtitleWidth / 2;
+        const by = topY;
+
+        if (
+          pointX >= bx &&
+          pointX <= bx + subtitleWidth &&
+          pointY >= by &&
+          pointY <= by + subtitleHeight
+        ) {
+          return sub;
+        }
+      }
+      return null;
+    },
+    [overlayRef, canvasRef, allSubtitles, playheadPosition, settings.width, settings.height],
+  );
+
   const selectedSubtitleId = useMemo(() => {
     const subtitleSelection = selectedItems.find(
       (item) => item.type === "subtitle",
@@ -5585,13 +5667,24 @@ export const Preview: React.FC = () => {
     (e: React.MouseEvent) => {
       if (interactionMode !== "none") return;
 
+      // Check subtitle hit first
+      const sub = findSubtitleAtPoint(e.clientX, e.clientY);
+      if (sub) {
+        select({ type: "subtitle", id: sub.id });
+        e.stopPropagation();
+        return;
+      }
+
       const clip = findGraphicClipAtPoint(e.clientX, e.clientY);
       if (clip) {
         select({ type: "shape-clip", id: clip.id });
         e.stopPropagation();
+      } else {
+        // Clicked empty space — clear any subtitle selection
+        clearSelection();
       }
     },
-    [interactionMode, findGraphicClipAtPoint, select],
+    [interactionMode, findSubtitleAtPoint, findGraphicClipAtPoint, select, clearSelection],
   );
 
   const handleMouseMove = useCallback(
