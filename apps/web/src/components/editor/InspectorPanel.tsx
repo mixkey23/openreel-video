@@ -57,52 +57,7 @@ import { AnimateTab } from "./inspector/tabs/AnimateTab";
 import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
-
-// ── helpers ────────────────────────────────────────────────────────────────
-
-/** Encode a rendered AudioBuffer as a WAV ArrayBuffer (PCM 16-bit mono). */
-function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
-  const numChannels = 1;
-  const sampleRate  = buffer.sampleRate;
-  const samples     = buffer.getChannelData(0);
-  const byteCount   = samples.length * 2;
-  const ab          = new ArrayBuffer(44 + byteCount);
-  const view        = new DataView(ab);
-  const write = (offset: number, val: number, size: number) => {
-    if (size === 2) view.setUint16(offset, val, true);
-    else            view.setUint32(offset, val, true);
-  };
-  const writeStr = (offset: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
-  writeStr(0, "RIFF"); write(4, 36 + byteCount, 4); writeStr(8, "WAVE");
-  writeStr(12, "fmt "); write(16, 16, 4); write(20, 1, 2); write(22, numChannels, 2);
-  write(24, sampleRate, 4); write(28, sampleRate * numChannels * 2, 4); write(32, numChannels * 2, 2); write(34, 16, 2);
-  writeStr(36, "data"); write(40, byteCount, 4);
-  for (let i = 0; i < samples.length; i++) {
-    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
-  }
-  return ab;
-}
-
-/** Group whisper word list into subtitle blocks (max 10 words / 5 s), offset by clipStart. */
-function groupWordsToSubtitles(
-  words: Array<{ word: string; start: number; end: number }>,
-  clipStart: number,
-): Array<{ text: string; startTime: number; endTime: number }> {
-  if (!words?.length) return [];
-  const blocks: Array<{ text: string; startTime: number; endTime: number }> = [];
-  let chunk: typeof words = [];
-  const flush = () => {
-    if (!chunk.length) return;
-    blocks.push({ text: chunk.map((w) => w.word).join(" ").trim(), startTime: clipStart + chunk[0].start, endTime: clipStart + chunk[chunk.length - 1].end });
-    chunk = [];
-  };
-  for (const w of words) {
-    if (chunk.length >= 10 || (chunk.length > 0 && w.end - chunk[0].start > 5)) flush();
-    chunk.push(w);
-  }
-  flush();
-  return blocks;
-}
+import { ensureCaptionsTrack, groupWordsToSubtitles } from "../../utils/captions-track";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
@@ -521,44 +476,24 @@ export const InspectorPanel: React.FC = () => {
     if (!selectedClip || isTranscribing) return;
 
     setIsTranscribing(true);
-    setTranscriptionProgress({
-      phase: "extracting",
-      progress: 0,
-      message: "Preparing audio...",
-    });
+    setTranscriptionProgress({ phase: "extracting", progress: 0, message: "Preparing audio..." });
 
     try {
-      const transcriptionService = initializeTranscriptionService({
-        apiEndpoint: `${OPENREEL_TRANSCRIBE_URL}/transcribe`,
-        targetLanguage: targetLanguage !== "none" ? targetLanguage : undefined,
-      });
-
       const regularClip = getClip(selectedClip.id);
       if (!regularClip) throw new Error("Could not find clip data");
 
       const clipStart = regularClip.startTime;
       const clipEnd   = regularClip.startTime + regularClip.duration;
 
-      // Collect audio clips based on selected source mode
-      const audioClips: Array<{ blob: Blob; startTime: number; duration: number }> = [];
+      // Ensure Captions track exists and is on top
+      await ensureCaptionsTrack();
 
-      if (audioSource === "audio-track") {
-        for (const track of project.timeline.tracks) {
-          if (track.type !== "audio" || track.muted) continue;
-          if (selectedAudioTrackId !== "all" && track.id !== selectedAudioTrackId) continue;
-          for (const ac of track.clips) {
-            const acEnd = ac.startTime + ac.duration;
-            if (acEnd <= clipStart || ac.startTime >= clipEnd) continue;
-            const mi = getMediaItem(ac.mediaId);
-            if (mi?.blob) audioClips.push({ blob: mi.blob, startTime: ac.startTime, duration: ac.duration });
-          }
-        }
-      }
-
-      let audioBlob: Blob;
-
-      if (audioSource === "video" || audioClips.length === 0) {
-        // Use embedded audio from the video file itself
+      // ── VIDEO FILE mode: extract audio from the video blob ────────────
+      if (audioSource === "video") {
+        const transcriptionService = initializeTranscriptionService({
+          apiEndpoint: `${OPENREEL_TRANSCRIBE_URL}/transcribe`,
+          targetLanguage: targetLanguage !== "none" ? targetLanguage : undefined,
+        });
         const mediaItem = getMediaItem(selectedClip.mediaId);
         if (!mediaItem) throw new Error("No media item found for clip");
         const subtitles = await transcriptionService.transcribeClip(regularClip, mediaItem, setTranscriptionProgress);
@@ -568,60 +503,59 @@ export const InspectorPanel: React.FC = () => {
         return;
       }
 
-      // Merge audio clips into a single WAV covering [clipStart, clipEnd] using AudioContext
-      audioClips.sort((a, b) => a.startTime - b.startTime);
-      const duration = clipEnd - clipStart;
-
-      const actx = new AudioContext();
-      const offlineCtx = new OfflineAudioContext(1, Math.ceil(duration * actx.sampleRate), actx.sampleRate);
-
-      for (const ac of audioClips) {
-        try {
-          const ab = await actx.decodeAudioData(await ac.blob.arrayBuffer());
-          const src = offlineCtx.createBufferSource();
-          src.buffer = ab;
-          src.connect(offlineCtx.destination);
-          // offsetInMix = where this audio clip starts relative to clipStart
-          const offsetInMix = Math.max(0, ac.startTime - clipStart);
-          src.start(offsetInMix);
-        } catch { /* skip undecodable clips */ }
-      }
-
-      const rendered = await offlineCtx.startRendering();
-      actx.close();
-
-      // Convert rendered AudioBuffer to WAV blob
-      const wavBuffer = audioBufferToWav(rendered);
-      audioBlob = new Blob([wavBuffer], { type: "audio/wav" });
-
-      setTranscriptionProgress({ phase: "transcribing", progress: 30, message: "Sending to Whisper..." });
-
-      // POST directly — bypass transcriptionService.transcribeClip to use merged audio
-      const formData = new FormData();
-      formData.append("audio", audioBlob, "audio.wav");
-      if (targetLanguage && targetLanguage !== "none") formData.append("target_language", targetLanguage);
-
-      const res = await fetch(`${OPENREEL_TRANSCRIBE_URL}/transcribe`, { method: "POST", body: formData });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as Record<string, unknown>;
-        throw new Error(String(err.detail ?? err.error ?? `Whisper error (${res.status})`));
-      }
-
-      const data = await res.json() as { text: string; words: Array<{ word: string; start: number; end: number }> };
-
-      setTranscriptionProgress({ phase: "transcribing", progress: 80, message: "Building captions..." });
-
-      // Group words into subtitle blocks, offset by clipStart
-      const subtitles = groupWordsToSubtitles(data.words, clipStart);
-      if (subtitles.length === 0 && data.text) {
-        addSubtitle({ id: `pc-${Date.now()}-0`, text: data.text, startTime: clipStart, endTime: clipEnd, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
-      } else {
-        for (let i = 0; i < subtitles.length; i++) {
-          addSubtitle({ id: `pc-${Date.now()}-${i}`, ...subtitles[i], animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+      // ── AUDIO TRACK mode: queue each audio clip individually ──────────
+      const audioClips: Array<{ blob: Blob; startTime: number; duration: number }> = [];
+      for (const track of project.timeline.tracks) {
+        if (track.type !== "audio" || track.muted) continue;
+        if (selectedAudioTrackId !== "all" && track.id !== selectedAudioTrackId) continue;
+        for (const ac of track.clips) {
+          if (ac.startTime + ac.duration <= clipStart || ac.startTime >= clipEnd) continue;
+          const mi = getMediaItem(ac.mediaId);
+          if (mi?.blob) audioClips.push({ blob: mi.blob, startTime: ac.startTime, duration: ac.duration });
         }
       }
 
-      setTranscriptionProgress({ phase: "complete", progress: 100, message: `Added ${subtitles.length || 1} subtitles` });
+      if (audioClips.length === 0) {
+        throw new Error("No audio clips found in this video clip's time range. Switch source to 'Video File'.");
+      }
+
+      audioClips.sort((a, b) => a.startTime - b.startTime);
+
+      let totalSubtitles = 0;
+      for (let i = 0; i < audioClips.length; i++) {
+        const ac = audioClips[i];
+        setTranscriptionProgress({
+          phase: "transcribing",
+          progress: Math.round((i / audioClips.length) * 90),
+          message: `Transcribing clip ${i + 1} of ${audioClips.length}…`,
+        });
+
+        const formData = new FormData();
+        formData.append("audio", ac.blob, "audio.wav");
+        if (targetLanguage && targetLanguage !== "none") formData.append("target_language", targetLanguage);
+
+        const res = await fetch(`${OPENREEL_TRANSCRIBE_URL}/transcribe`, { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+          console.warn(`[Subtitles] Clip ${i + 1} failed:`, err);
+          continue;
+        }
+
+        const data = await res.json() as { text: string; words: Array<{ word: string; start: number; end: number }> };
+        const blocks = groupWordsToSubtitles(data.words, ac.startTime);
+
+        if (blocks.length === 0 && data.text?.trim()) {
+          addSubtitle({ id: `pc-${Date.now()}-${i}-0`, text: data.text.trim(), startTime: ac.startTime, endTime: ac.startTime + ac.duration, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+          totalSubtitles++;
+        } else {
+          for (let j = 0; j < blocks.length; j++) {
+            addSubtitle({ id: `pc-${Date.now()}-${i}-${j}`, ...blocks[j], animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+          }
+          totalSubtitles += blocks.length;
+        }
+      }
+
+      setTranscriptionProgress({ phase: "complete", progress: 100, message: `Added ${totalSubtitles} subtitles` });
       setTimeout(() => { setTranscriptionProgress(null); setIsTranscribing(false); }, 2000);
     } catch (error) {
       console.error("[Subtitles] Transcription failed:", error);
