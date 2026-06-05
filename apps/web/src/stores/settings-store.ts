@@ -329,7 +329,19 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       {
         name: "openreel-settings",
-        version: 1,
+        version: 2,
+        migrate: (persisted: unknown, fromVersion: number) => {
+          const state = (persisted ?? {}) as Record<string, unknown>;
+          if (fromVersion < 2) {
+            if (!state.ollamaHost || state.ollamaHost === "http://localhost:11434") {
+              state.ollamaHost = "http://192.168.10.182:47580";
+            }
+            if (!state.comfyuiHost || state.comfyuiHost === "http://localhost:8188") {
+              state.comfyuiHost = "http://192.168.10.182:8188";
+            }
+          }
+          return state;
+        },
         partialize: (state) => ({
           autoSave: state.autoSave,
           autoSaveInterval: state.autoSaveInterval,
