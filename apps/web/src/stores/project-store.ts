@@ -4594,61 +4594,9 @@ export const useProjectStore = create<ProjectState>()(
       // Subtitle actions - subtitles are now created as text clips on a "Captions" track
 
       /**
-       * Add a subtitle as a text clip on a Captions track
+       * Add a subtitle to timeline.subtitles (rendered as overlay in preview)
        */
       addSubtitle: async (subtitle) => {
-        const { project, addTrack, createTextClip } = get();
-
-        let captionsTrack = project.timeline.tracks.find(
-          (t) => t.type === "text" && t.name === "Captions"
-        );
-
-        if (!captionsTrack) {
-          const result = await addTrack("text");
-          if (!result?.success) return;
-
-          const updatedProject = get().project;
-          const newTracks = updatedProject.timeline.tracks.filter(
-            (t) => t.type === "text" && !project.timeline.tracks.some((old) => old.id === t.id)
-          );
-          captionsTrack = newTracks[0];
-
-          if (captionsTrack) {
-            set((state) => ({
-              project: {
-                ...state.project,
-                timeline: {
-                  ...state.project.timeline,
-                  tracks: state.project.timeline.tracks.map((t) =>
-                    t.id === captionsTrack!.id ? { ...t, name: "Captions" } : t
-                  ),
-                },
-              },
-            }));
-            captionsTrack = { ...captionsTrack, name: "Captions" };
-          }
-        }
-
-        if (!captionsTrack) return;
-
-        const duration = subtitle.endTime - subtitle.startTime;
-        const style = subtitle.style;
-
-        createTextClip(
-          captionsTrack.id,
-          subtitle.startTime,
-          subtitle.text,
-          duration,
-          style ? {
-            fontFamily: style.fontFamily,
-            fontSize: style.fontSize,
-            color: style.color,
-            backgroundColor: style.backgroundColor || undefined,
-          } : undefined
-        );
-
-        // Also persist the full subtitle (with words + animationStyle) in
-        // timeline.subtitles so the caption animation renderer can find it.
         set((state) => ({
           project: addSubtitleToProject(state.project, subtitle),
         }));

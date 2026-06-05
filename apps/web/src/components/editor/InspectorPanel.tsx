@@ -58,7 +58,7 @@ import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
 import { InfoTab } from "./inspector/tabs/InfoTab";
-import { ensureCaptionsTrack, groupWordsToSubtitles } from "../../utils/captions-track";
+import { groupWordsToSubtitles } from "../../utils/captions-track";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
@@ -485,9 +485,6 @@ export const InspectorPanel: React.FC = () => {
 
       const clipStart = regularClip.startTime;
       const clipEnd   = regularClip.startTime + regularClip.duration;
-
-      // Ensure Captions track exists and is on top
-      await ensureCaptionsTrack();
 
       // ── VIDEO FILE mode: extract audio from the video blob ────────────
       if (audioSource === "video") {

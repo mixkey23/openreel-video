@@ -12,7 +12,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@openreel/ui";
-import { ensureCaptionsTrack, groupWordsToSubtitles } from "../../../utils/captions-track";
+import { groupWordsToSubtitles } from "../../../utils/captions-track";
 
 const CAPTION_STYLE_PRESETS = [
   { id: "default",   name: "Default",   description: "White text on dark background" },
@@ -120,7 +120,6 @@ export const AutoCaptionPanel: React.FC = () => {
     setIsTranscribing(false);
     setProgress(null);
     if (result.success && result.segments.length > 0) {
-      await ensureCaptionsTrack();
       const subtitles = speechEngine.segmentsToSubtitles(result.segments);
       subtitles.forEach((subtitle) => addSubtitle(subtitle));
       if (selectedStyle !== "default") await applySubtitleStylePreset(selectedStyle);
@@ -129,7 +128,6 @@ export const AutoCaptionPanel: React.FC = () => {
 
   const handleApplySegments = useCallback(async () => {
     if (segments.length === 0) return;
-    await ensureCaptionsTrack();
     const speechEngine = await getSpeechToTextEngine();
     const subtitles = speechEngine.segmentsToSubtitles(segments);
     subtitles.forEach((subtitle) => addSubtitle(subtitle));
@@ -191,9 +189,6 @@ export const AutoCaptionPanel: React.FC = () => {
     setTlStatus("transcribing");
 
     try {
-      // Ensure Captions track is on top before inserting
-      await ensureCaptionsTrack();
-
       let totalSubtitles = 0;
 
       for (let i = 0; i < clipsToTranscribe.length; i++) {
