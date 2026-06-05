@@ -32,7 +32,11 @@ export interface FramesmithConfig {
   clips: FramesmithClip[];
   projectName?: string;
   episodeId?: string;
+  mode?: "init" | "restore";
 }
+
+/** Module-level episodeId so the auto-save hook can POST back to Framesmith. */
+export let framesmithEpisodeId: string | null = null;
 
 async function fetchAsFile(url: string, filename: string, mimeType: string): Promise<File> {
   const response = await fetch(url);
@@ -57,6 +61,60 @@ export function useFramesmithInit() {
       config = JSON.parse(configStr);
     } catch {
       console.error("[Framesmith] Invalid config in sessionStorage");
+      return;
+    }
+
+    // Persist episodeId for the auto-save sync hook
+    if (config.episodeId) {
+      framesmithEpisodeId = config.episodeId;
+    }
+
+    // ── RESTORE MODE: load previously saved OpenReel project ──────────
+    if (config.mode === "restore" && config.episodeId) {
+      sessionStorage.removeItem(FRAMESMITH_STORAGE_KEY);
+      console.log("[Framesmith] Restore mode — loading saved project for episode", config.episodeId);
+
+      setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/episodes/${config.episodeId}/s6/project`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const savedProject = await res.json();
+
+          // Re-fetch media blobs from their originalUrl (blobs can't be serialized to JSON)
+          const restoredItems = await Promise.all(
+            (savedProject.mediaLibrary?.items ?? []).map(async (item: Record<string, unknown>) => {
+              const originalUrl = item.originalUrl as string | undefined;
+              if (!originalUrl) return item;
+              try {
+                const blobRes = await fetch(originalUrl);
+                if (!blobRes.ok) return item;
+                const blob = await blobRes.blob();
+                return { ...item, blob, thumbnailUrl: null, filmstripThumbnails: undefined };
+              } catch {
+                return item;
+              }
+            })
+          );
+
+          const projectWithMedia = {
+            ...savedProject,
+            mediaLibrary: {
+              ...savedProject.mediaLibrary,
+              items: restoredItems,
+            },
+          };
+
+          useProjectStore.getState().loadProject(projectWithMedia);
+          console.log("[Framesmith] Restore complete — project loaded from server");
+        } catch (err) {
+          console.error("[Framesmith] Restore failed, falling back to fresh init:", err);
+          // Fallback: re-run as fresh init by re-writing config without mode:restore
+          const fallbackConfig = { ...config, mode: "init" as const };
+          sessionStorage.setItem(FRAMESMITH_STORAGE_KEY, JSON.stringify(fallbackConfig));
+          // Re-trigger init
+          initialized.current = false;
+        }
+      }, 100);
       return;
     }
 
