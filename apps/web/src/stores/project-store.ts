@@ -63,6 +63,7 @@ import {
   type ClipHistoryEntry,
   type EditingTemplateHistoryEntry,
 } from "./project/index";
+import { addSubtitleToProject } from "./project/subtitle-helpers";
 import {
   saveMediaBlob,
   deleteMediaBlob,
@@ -4645,6 +4646,12 @@ export const useProjectStore = create<ProjectState>()(
             backgroundColor: style.backgroundColor || undefined,
           } : undefined
         );
+
+        // Also persist the full subtitle (with words + animationStyle) in
+        // timeline.subtitles so the caption animation renderer can find it.
+        set((state) => ({
+          project: addSubtitleToProject(state.project, subtitle),
+        }));
       },
 
       /**
