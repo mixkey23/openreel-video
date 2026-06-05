@@ -13,6 +13,7 @@ import { useProjectRecovery } from "./hooks/useProjectRecovery";
 import { useKieAIPoller } from "./hooks/useKieAIPoller";
 import { useFramesmithInit } from "./hooks/use-framesmith-init";
 import { useFramesmithBridge } from "./hooks/use-framesmith-bridge";
+import { useFramesmithAutosave } from "./hooks/use-framesmith-autosave";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { TooltipProvider } from "@openreel/ui";
 
@@ -51,6 +52,7 @@ function App() {
   // Framesmith integration: auto-import clips + bidirectional timeline sync
   useFramesmithInit();
   useFramesmithBridge();
+  useFramesmithAutosave();
 
   useEffect(() => {
     if (hasHandledInitialRoute.current) return;
