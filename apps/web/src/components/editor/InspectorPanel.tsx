@@ -155,6 +155,8 @@ export const InspectorPanel: React.FC = () => {
     useState<WhisperTranscriptionProgress | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState("none");
+  const [audioSource, setAudioSource] = useState<"video" | "audio-track">("audio-track");
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string>("all");
   const [defaultAnimationStyle, setDefaultAnimationStyle] =
     useState<CaptionAnimationStyle>("word-highlight");
   const [expandedRecipeApplicationId, setExpandedRecipeApplicationId] =
@@ -537,23 +539,26 @@ export const InspectorPanel: React.FC = () => {
       const clipStart = regularClip.startTime;
       const clipEnd   = regularClip.startTime + regularClip.duration;
 
-      // Collect audio clips that overlap with the selected video clip's time range.
-      // Framesmith generates silent video files (S5) — audio lives on separate tracks.
+      // Collect audio clips based on selected source mode
       const audioClips: Array<{ blob: Blob; startTime: number; duration: number }> = [];
-      for (const track of project.timeline.tracks) {
-        if (track.type !== "audio" || track.muted) continue;
-        for (const ac of track.clips) {
-          const acEnd = ac.startTime + ac.duration;
-          if (acEnd <= clipStart || ac.startTime >= clipEnd) continue;
-          const mi = getMediaItem(ac.mediaId);
-          if (mi?.blob) audioClips.push({ blob: mi.blob, startTime: ac.startTime, duration: ac.duration });
+
+      if (audioSource === "audio-track") {
+        for (const track of project.timeline.tracks) {
+          if (track.type !== "audio" || track.muted) continue;
+          if (selectedAudioTrackId !== "all" && track.id !== selectedAudioTrackId) continue;
+          for (const ac of track.clips) {
+            const acEnd = ac.startTime + ac.duration;
+            if (acEnd <= clipStart || ac.startTime >= clipEnd) continue;
+            const mi = getMediaItem(ac.mediaId);
+            if (mi?.blob) audioClips.push({ blob: mi.blob, startTime: ac.startTime, duration: ac.duration });
+          }
         }
       }
 
       let audioBlob: Blob;
 
-      if (audioClips.length === 0) {
-        // No dedicated audio track — fall back to extracting audio from the video file
+      if (audioSource === "video" || audioClips.length === 0) {
+        // Use embedded audio from the video file itself
         const mediaItem = getMediaItem(selectedClip.mediaId);
         if (!mediaItem) throw new Error("No media item found for clip");
         const subtitles = await transcriptionService.transcribeClip(regularClip, mediaItem, setTranscriptionProgress);
@@ -631,6 +636,8 @@ export const InspectorPanel: React.FC = () => {
     addSubtitle,
     defaultAnimationStyle,
     targetLanguage,
+    audioSource,
+    selectedAudioTrackId,
     project.timeline.tracks,
   ]);
 
@@ -978,6 +985,11 @@ export const InspectorPanel: React.FC = () => {
                 isEnhancingAudio={isEnhancingAudio}
                 audioEnhanced={audioEnhanced}
                 isApplyingSelectedClipEffect={isApplyingSelectedClipEffect}
+                audioSource={audioSource}
+                setAudioSource={setAudioSource}
+                audioTracks={project.timeline.tracks.filter((t) => t.type === "audio")}
+                selectedAudioTrackId={selectedAudioTrackId}
+                setSelectedAudioTrackId={setSelectedAudioTrackId}
               />
             </InspectorTabPanel>
 

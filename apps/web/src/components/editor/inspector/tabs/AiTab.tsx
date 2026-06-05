@@ -1,5 +1,6 @@
 import React from "react";
-import { Zap, Captions, Loader2, Upload } from "lucide-react";
+import { Zap, Captions, Loader2, Upload, AudioLines, Film } from "lucide-react";
+import type { Track } from "@openreel/core";
 import {
   type WhisperTranscriptionProgress,
   type CaptionAnimationStyle,
@@ -45,6 +46,11 @@ export interface AiTabProps {
   isEnhancingAudio: boolean;
   audioEnhanced: boolean;
   isApplyingSelectedClipEffect: boolean;
+  audioSource: "video" | "audio-track";
+  setAudioSource: React.Dispatch<React.SetStateAction<"video" | "audio-track">>;
+  audioTracks: Track[];
+  selectedAudioTrackId: string;
+  setSelectedAudioTrackId: React.Dispatch<React.SetStateAction<string>>;
 }
 
 export const AiTab: React.FC<AiTabProps> = ({
@@ -68,6 +74,11 @@ export const AiTab: React.FC<AiTabProps> = ({
   isEnhancingAudio,
   audioEnhanced,
   isApplyingSelectedClipEffect,
+  audioSource,
+  setAudioSource,
+  audioTracks,
+  selectedAudioTrackId,
+  setSelectedAudioTrackId,
 }) => {
   return (
     <>
@@ -86,6 +97,72 @@ export const AiTab: React.FC<AiTabProps> = ({
                 onChange={handleSRTImport}
                 className="hidden"
               />
+
+              {/* Audio source toggle */}
+              <div>
+                <label className="text-[10px] text-text-secondary block mb-1.5">
+                  Audio Source
+                </label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setAudioSource("audio-track")}
+                    disabled={isTranscribing}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+                      audioSource === "audio-track"
+                        ? "bg-primary text-white font-medium"
+                        : "bg-background-tertiary text-text-secondary border border-border hover:text-text-primary"
+                    }`}
+                  >
+                    <AudioLines size={11} />
+                    Audio Track
+                  </button>
+                  <button
+                    onClick={() => setAudioSource("video")}
+                    disabled={isTranscribing}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+                      audioSource === "video"
+                        ? "bg-primary text-white font-medium"
+                        : "bg-background-tertiary text-text-secondary border border-border hover:text-text-primary"
+                    }`}
+                  >
+                    <Film size={11} />
+                    Video File
+                  </button>
+                </div>
+              </div>
+
+              {/* Track selector — only shown when audio-track mode is active */}
+              {audioSource === "audio-track" && (
+                <div>
+                  <label className="text-[10px] text-text-secondary block mb-1">
+                    Track
+                  </label>
+                  {audioTracks.length === 0 ? (
+                    <p className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1.5">
+                      No audio tracks found — switch to "Video File" to extract embedded audio.
+                    </p>
+                  ) : (
+                    <Select
+                      value={selectedAudioTrackId}
+                      onValueChange={setSelectedAudioTrackId}
+                      disabled={isTranscribing}
+                    >
+                      <SelectTrigger className="w-full bg-background-secondary border-border text-text-primary text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background-secondary border-border">
+                        <SelectItem value="all">All audio tracks</SelectItem>
+                        {audioTracks.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name || `Audio Track`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="text-[10px] text-text-secondary block mb-1">
                   Animation Style
