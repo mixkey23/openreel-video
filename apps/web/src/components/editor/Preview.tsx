@@ -5318,7 +5318,6 @@ export const Preview: React.FC = () => {
         // Compute subtitle bounds for this subtitle (same logic as subtitleBounds memo)
         if (!canvasRef.current) continue;
         const canvas = canvasRef.current;
-        const overlay = overlayRef.current;
         const canvasRect = canvas.getBoundingClientRect();
 
         const fontSize = sub.style?.fontSize || 24;
