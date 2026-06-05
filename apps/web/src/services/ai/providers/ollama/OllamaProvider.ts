@@ -3,7 +3,7 @@
  *
  * Supports chat completion with streaming and non-streaming modes.
  * Default model: qwen2.5:14b-instruct
- * Default host: http://localhost:11434
+ * Default host: http://192.168.10.182:47580
  */
 
 import type {
@@ -15,7 +15,7 @@ import type {
 } from "../types";
 import { ProviderError } from "../types";
 
-const DEFAULT_HOST = "http://localhost:11434";
+const DEFAULT_HOST = "http://192.168.10.182:47580";
 const DEFAULT_MODEL = "qwen2.5:14b-instruct";
 
 /**

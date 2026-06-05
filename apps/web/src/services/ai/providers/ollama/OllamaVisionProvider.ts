@@ -59,7 +59,7 @@ export class OllamaVisionProvider implements AIProvider {
   private model: string;
 
   constructor(host?: string, model?: string) {
-    this.host = host || "http://localhost:11434";
+    this.host = host || "http://192.168.10.182:47580";
     this.model = model || DEFAULT_VISION_MODEL;
   }
 
