@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Move, Palette, Wand2, Volume2, Gauge, Film, Sparkles, Type } from "lucide-react";
+import { Move, Palette, Wand2, Volume2, Gauge, Film, Sparkles, Type, Info } from "lucide-react";
 
 export type InspectorTabId =
   | "transform"
@@ -9,7 +9,8 @@ export type InspectorTabId =
   | "speed"
   | "animate"
   | "ai"
-  | "style";
+  | "style"
+  | "info";
 
 export type InspectorClipType =
   | "video"
@@ -35,16 +36,17 @@ export const TAB_DEFS: Record<InspectorTabId, InspectorTabDef> = {
   animate: { id: "animate", label: "Animate", icon: Film },
   ai: { id: "ai", label: "AI", icon: Sparkles },
   style: { id: "style", label: "Style", icon: Type },
+  info:  { id: "info",  label: "Info",  icon: Info  },
 };
 
 const TABS_BY_CLIP_TYPE: Record<InspectorClipType, InspectorTabId[]> = {
-  video: ["transform", "color", "effects", "audio", "speed", "animate", "ai"],
-  image: ["transform", "color", "effects", "speed", "animate", "ai"],
-  audio: ["audio", "ai"],
-  text: ["transform", "style", "effects", "animate"],
-  shape: ["transform", "style", "effects", "animate"],
-  svg: ["transform", "style", "effects", "animate"],
-  sticker: ["transform", "effects", "animate"],
+  video:   ["info", "transform", "color", "effects", "audio", "speed", "animate", "ai"],
+  image:   ["info", "transform", "color", "effects", "speed", "animate", "ai"],
+  audio:   ["info", "audio", "ai"],
+  text:    ["info", "transform", "style", "effects", "animate"],
+  shape:   ["info", "transform", "style", "effects", "animate"],
+  svg:     ["info", "transform", "style", "effects", "animate"],
+  sticker: ["info", "transform", "effects", "animate"],
 };
 
 export function getTabIdsForClipType(

@@ -57,6 +57,7 @@ import { AnimateTab } from "./inspector/tabs/AnimateTab";
 import { StyleTab } from "./inspector/tabs/StyleTab";
 import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
+import { InfoTab } from "./inspector/tabs/InfoTab";
 import { ensureCaptionsTrack, groupWordsToSubtitles } from "../../utils/captions-track";
 
 // Initialize engines as singletons
@@ -711,6 +712,16 @@ export const InspectorPanel: React.FC = () => {
   const showTextSection = clipType === "text";
   const showShapeSection = clipType === "shape";
   const showSVGSection = clipType === "svg";
+
+  const clipMediaItem = useMemo(() => {
+    if (!selectedClip?.mediaId) return null;
+    return project.mediaLibrary.items.find((i) => i.id === selectedClip.mediaId) ?? null;
+  }, [selectedClip, project.mediaLibrary.items]);
+
+  const clipTrack = useMemo(() => {
+    if (!selectedClip) return null;
+    return project.timeline.tracks.find((t) => t.id === selectedClip.trackId) ?? null;
+  }, [selectedClip, project.timeline.tracks]);
   const selectedNoiseReductionEffect = selectedTimelineClip?.audioEffects?.find(
     (effect) => effect.type === "noiseReduction",
   );
@@ -975,6 +986,17 @@ export const InspectorPanel: React.FC = () => {
                 showShapeSection={showShapeSection}
                 showSVGSection={showSVGSection}
               />
+            </InspectorTabPanel>
+
+            <InspectorTabPanel tab="info" active={activeTab}>
+              {(selectedTimelineClip ?? selectedClip) && (
+                <InfoTab
+                  clip={(selectedTimelineClip ?? selectedClip) as import("@openreel/core").Clip}
+                  mediaItem={clipMediaItem}
+                  trackName={clipTrack?.name ?? ""}
+                  trackType={clipTrack?.type ?? ""}
+                />
+              )}
             </InspectorTabPanel>
 
           </InspectorTabErrorBoundary>
