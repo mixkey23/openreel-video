@@ -13,6 +13,7 @@
 
 import { useEffect, useRef } from "react";
 import { useProjectStore } from "../stores/project-store";
+import { useEngineStore } from "../stores/engine-store";
 import { framesmithEpisodeId } from "./use-framesmith-init";
 
 const DEBOUNCE_MS = 5_000;  // wait 5s after last change before posting
@@ -40,10 +41,20 @@ export function useFramesmithAutosave() {
       const currentProject = useProjectStore.getState().project;
       if (!currentProject) return;
 
+      // Pull engine-side clip arrays that are NOT stored in the Zustand project
+      // state — they live in their respective engine instances and must be
+      // snapshotted here so loadProject() can restore them on next load.
+      const titleEngine    = useEngineStore.getState().getTitleEngine();
+      const graphicsEngine = useEngineStore.getState().getGraphicsEngine();
+
       // Strip binary blobs — they can't be serialised to JSON and will be
       // re-fetched from originalUrl on restore.
       const payload = {
         ...currentProject,
+        textClips:    titleEngine?.getAllTextClips()          || [],
+        shapeClips:   graphicsEngine?.getAllShapeClips()      || [],
+        svgClips:     graphicsEngine?.getAllSVGClips()        || [],
+        stickerClips: graphicsEngine?.getAllStickerClips()    || [],
         mediaLibrary: {
           ...currentProject.mediaLibrary,
           items: currentProject.mediaLibrary.items.map((item) => ({
