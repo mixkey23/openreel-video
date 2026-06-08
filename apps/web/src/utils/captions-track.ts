@@ -93,13 +93,16 @@ export function groupWordsToSubtitles(
   }
   flush();
 
-  // Apply hold padding — cap each block's endTime to just before next block starts
+  // Apply hold padding — extend endTime by holdSeconds, capped just before next block.
+  // Never shorten a block (if next block is already adjacent, skip hold for that block).
   if (holdSeconds > 0) {
     for (let i = 0; i < blocks.length; i++) {
-      const maxEnd = i + 1 < blocks.length
-        ? blocks[i + 1].startTime - 0.01   // don't overlap next block
-        : blocks[i].endTime + holdSeconds;   // last block: extend freely
-      blocks[i] = { ...blocks[i], endTime: Math.min(blocks[i].endTime + holdSeconds, maxEnd) };
+      const speechEnd = blocks[i].endTime;
+      const desired   = speechEnd + holdSeconds;
+      const maxEnd    = i + 1 < blocks.length
+        ? blocks[i + 1].startTime - 0.01
+        : desired;
+      blocks[i] = { ...blocks[i], endTime: Math.max(speechEnd, Math.min(desired, maxEnd)) };
     }
   }
 
