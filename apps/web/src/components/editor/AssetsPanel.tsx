@@ -1522,7 +1522,7 @@ export const AssetsPanel: React.FC = () => {
       data-tour="assets"
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full relative"
     >
-      {/* ── Horizontal tool nav (icon + label, top) ──────────── */}
+      {/* ── Horizontal tool nav (icon-only, top) ──────────── */}
       <div className="flex items-stretch gap-0.5 px-2 pt-2 pb-1 border-b border-border bg-bg-1 overflow-x-auto scrollbar-none shrink-0">
         {ASSETS_TABS.map((tab) => {
           const Icon = TAB_ICONS[tab.value];
@@ -1531,8 +1531,8 @@ export const AssetsPanel: React.FC = () => {
             <button
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
-              title={tab.description}
-              className={`group flex flex-col items-center justify-center gap-1 px-2 py-1.5 rounded-md min-w-[50px] shrink-0 text-[10.5px] font-medium tracking-tight transition-colors ${
+              title={tab.label}
+              className={`group flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-md shrink-0 transition-colors ${
                 isActive
                   ? "text-accent"
                   : "text-fg-3 hover:text-fg hover:bg-hover"
@@ -1547,7 +1547,6 @@ export const AssetsPanel: React.FC = () => {
               >
                 <Icon size={17} strokeWidth={1.6} />
               </span>
-              <span className={isActive ? "text-accent" : ""}>{tab.label}</span>
             </button>
           );
         })}
