@@ -139,6 +139,23 @@ export const Timeline: React.FC = () => {
     },
     [allShapeClips],
   );
+
+  const { getAllVimaxShotClips, updateVimaxShotClip } = useProjectStore();
+  const allVimaxClips = useMemo(
+    () => getAllVimaxShotClips(),
+    [getAllVimaxShotClips, project.modifiedAt],
+  );
+  const getVimaxClipsForTrack = useCallback(
+    (trackId: string) => allVimaxClips.filter((vc) => vc.trackId === trackId),
+    [allVimaxClips],
+  );
+  const handleMoveVimaxClip = useCallback(
+    (clipId: string, newStartTime: number) => {
+      updateVimaxShotClip(clipId, { startTime: newStartTime } as Parameters<typeof updateVimaxShotClip>[1]);
+    },
+    [updateVimaxShotClip],
+  );
+
   const [isBoxSelecting, setIsBoxSelecting] = React.useState(false);
   const [selectionBox, setSelectionBox] = React.useState<{
     startX: number;
@@ -1131,6 +1148,7 @@ export const Timeline: React.FC = () => {
                   selectedClipIds={selectedClipIds}
                   textClips={getTextClipsForTrack(track.id)}
                   shapeClips={getShapeClipsForTrack(track.id)}
+                  vimaxShotClips={getVimaxClipsForTrack(track.id)}
                   trackHeights={trackHeightsMap}
                   timelineRef={tracksRef}
                   onSelectClip={handleSelectClip}
@@ -1147,6 +1165,7 @@ export const Timeline: React.FC = () => {
                   onTrimTextClip={handleTrimTextClip}
                   onMoveTextClip={handleMoveTextClip}
                   onTrimShapeClip={handleTrimShapeClip}
+                  onMoveVimaxClip={handleMoveVimaxClip}
                   scrollX={scrollX}
                   trackHeight={getTrackHeight(track.id)}
                   onResizeTrack={setTrackHeightById}

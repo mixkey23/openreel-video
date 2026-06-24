@@ -5,10 +5,12 @@ import type {
   ShapeClip,
   SVGClip,
   StickerClip,
+  VimaxShotClip,
 } from "@openreel/core";
 import { ClipComponent } from "./ClipComponent";
 import { TextClipComponent } from "./TextClipComponent";
 import { ShapeClipComponent } from "./ShapeClipComponent";
+import { VimaxShotClipComponent } from "./VimaxShotClipComponent";
 import { KeyframeTrack } from "./KeyframeTrack";
 import { calculateSnap } from "./utils";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -25,6 +27,7 @@ interface TrackLaneProps {
   selectedClipIds: string[];
   textClips: TextClip[];
   shapeClips: GraphicClipUnion[];
+  vimaxShotClips: VimaxShotClip[];
   trackHeights: Map<string, number>;
   timelineRef: React.RefObject<HTMLDivElement>;
   onSelectClip: (clipId: string, addToSelection: boolean) => void;
@@ -35,6 +38,7 @@ interface TrackLaneProps {
     targetTrackId?: string,
   ) => void;
   onMoveTextClip: (clipId: string, newStartTime: number) => void;
+  onMoveVimaxClip: (clipId: string, newStartTime: number) => void;
   onSnapIndicator: (time: number | null) => void;
   onTrimClip?: (
     clipId: string,
@@ -67,12 +71,14 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
   selectedClipIds,
   textClips,
   shapeClips,
+  vimaxShotClips,
   trackHeights,
   timelineRef,
   onSelectClip,
   onDropMedia,
   onMoveClip,
   onMoveTextClip,
+  onMoveVimaxClip,
   onSnapIndicator,
   onTrimClip,
   onTrimTextClip,
@@ -241,6 +247,7 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
         {track.clips
           .filter((clip) => !textClips.some((tc) => tc.id === clip.id))
           .filter((clip) => !shapeClips.some((sc) => sc.id === clip.id))
+          .filter((clip) => !vimaxShotClips.some((vc) => vc.id === clip.id))
           .map((clip) => (
             <ClipComponent
               key={clip.id}
@@ -277,6 +284,16 @@ export const TrackLane: React.FC<TrackLaneProps> = ({
             onSelect={onSelectClip}
             onTrim={onTrimShapeClip}
             onMoveClip={onMoveClip}
+          />
+        ))}
+        {vimaxShotClips.map((vc) => (
+          <VimaxShotClipComponent
+            key={vc.id}
+            clip={vc}
+            pixelsPerSecond={pixelsPerSecond}
+            isSelected={selectedClipIds.includes(vc.id)}
+            onSelect={onSelectClip}
+            onMoveClip={onMoveVimaxClip}
           />
         ))}
         {isDragOver && (
