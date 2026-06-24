@@ -479,6 +479,22 @@ export interface ProjectState {
   checkForRecovery: () => Promise<AutoSaveMetadata[]>;
   recoverFromAutoSave: (saveId: string) => Promise<boolean>;
   forceSave: () => Promise<void>;
+
+  // Framesmith integration
+  apiBase: string | null;
+  episodeId: string | null;
+  setFramesmithContext: (apiBase: string, episodeId: string) => void;
+
+  // VimaxShot actions
+  createVimaxShotClip: (
+    trackId: string,
+    startTime: number,
+    data: Omit<import("@openreel/core").VimaxShotClip, "id" | "mediaId" | "trackId" | "startTime">,
+  ) => import("@openreel/core").VimaxShotClip | null;
+  updateVimaxShotClip: (
+    clipId: string,
+    updates: Partial<Omit<import("@openreel/core").VimaxShotClip, "id" | "mediaId" | "trackId">>,
+  ) => import("@openreel/core").VimaxShotClip | null;
 }
 
 /**
@@ -1479,6 +1495,8 @@ export const useProjectStore = create<ProjectState>()(
       error: null,
       clipboard: [] as Clip[],
       copiedEffects: [] as Effect[],
+      apiBase: null as string | null,
+      episodeId: null as string | null,
 
       createNewProject: (
         name?: string,
@@ -6063,6 +6081,95 @@ export const useProjectStore = create<ProjectState>()(
           }
         }
         return false;
+      },
+
+      // Framesmith integration
+      setFramesmithContext: (apiBase: string, episodeId: string) => {
+        set({ apiBase, episodeId });
+      },
+
+      // VimaxShot actions
+      createVimaxShotClip: (trackId, startTime, data) => {
+        const { project } = get();
+        const track = project.timeline.tracks.find((t) => t.id === trackId);
+        if (!track) {
+          console.error(`[VimaxShot] Track ${trackId} not found`);
+          return null;
+        }
+
+        const id = crypto.randomUUID();
+        const mediaId = `vimax-${id}`;
+
+        const vimaxClip: import("@openreel/core").VimaxShotClip = {
+          id,
+          mediaId,
+          trackId,
+          startTime,
+          ...data,
+        };
+
+        const syntheticClip: import("@openreel/core").Clip = {
+          id,
+          mediaId,
+          trackId,
+          startTime,
+          duration: data.duration,
+          inPoint: 0,
+          outPoint: data.duration,
+          effects: [],
+          audioEffects: [],
+          keyframes: [],
+          transform: {
+            position: { x: 0, y: 0 },
+            scale: { x: 1, y: 1 },
+            rotation: 0,
+            anchor: { x: 0, y: 0 },
+            opacity: 1,
+          },
+          volume: 1,
+        };
+
+        const updatedTrack = {
+          ...track,
+          clips: [...track.clips, syntheticClip],
+        };
+
+        const updatedProject: import("@openreel/core").Project = {
+          ...project,
+          timeline: {
+            ...project.timeline,
+            tracks: project.timeline.tracks.map((t) =>
+              t.id === trackId ? updatedTrack : t,
+            ),
+          },
+          vimaxShotClips: [...(project.vimaxShotClips ?? []), vimaxClip],
+          modifiedAt: Date.now(),
+        };
+
+        set({ project: updatedProject });
+        return vimaxClip;
+      },
+
+      updateVimaxShotClip: (clipId, updates) => {
+        const { project } = get();
+        const existing = (project.vimaxShotClips ?? []).find((c) => c.id === clipId);
+        if (!existing) {
+          console.error(`[VimaxShot] Clip ${clipId} not found`);
+          return null;
+        }
+
+        const updated = { ...existing, ...updates } as import("@openreel/core").VimaxShotClip;
+
+        const updatedProject: import("@openreel/core").Project = {
+          ...project,
+          vimaxShotClips: (project.vimaxShotClips ?? []).map((c) =>
+            c.id === clipId ? updated : c,
+          ),
+          modifiedAt: Date.now(),
+        };
+
+        set({ project: updatedProject });
+        return updated;
       },
     };
   }),

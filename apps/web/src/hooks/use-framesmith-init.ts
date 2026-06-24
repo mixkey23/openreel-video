@@ -29,10 +29,13 @@ export interface FramesmithClip {
 }
 
 export interface FramesmithConfig {
-  clips: FramesmithClip[];
+  clips?: FramesmithClip[];
   projectName?: string;
+  // Legacy: episodeId as top-level string (old format)
   episodeId?: string;
   mode?: "init" | "restore";
+  // New format: explicit apiBase for LTX Director render
+  apiBase?: string;
 }
 
 /** Module-level episodeId so the auto-save hook can POST back to Framesmith. */
@@ -118,8 +121,13 @@ export function useFramesmithInit() {
       return;
     }
 
-    const { createNewProject, importMedia, addTrack, addClip } =
+    const { createNewProject, importMedia, addTrack, addClip, setFramesmithContext } =
       useProjectStore.getState();
+
+    // Store apiBase and episodeId for the render button
+    if (config.apiBase && config.episodeId) {
+      setFramesmithContext(config.apiBase, config.episodeId);
+    }
 
     createNewProject(config.projectName || "Framesmith Project", {
       width: 1920,

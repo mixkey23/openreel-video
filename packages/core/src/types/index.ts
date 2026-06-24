@@ -1,5 +1,6 @@
 export * from "./project";
 export * from "./timeline";
+export type { VimaxShotClip } from "./vimax-shot";
 export * from "./actions";
 export * from "./effects";
 export * from "./template";

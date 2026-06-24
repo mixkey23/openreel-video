@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Move, Palette, Wand2, Volume2, Gauge, Film, Sparkles, Type, Info } from "lucide-react";
+import { Move, Palette, Wand2, Volume2, Gauge, Film, Sparkles, Type, Info, Clapperboard } from "lucide-react";
 
 export type InspectorTabId =
   | "transform"
@@ -10,7 +10,8 @@ export type InspectorTabId =
   | "animate"
   | "ai"
   | "style"
-  | "info";
+  | "info"
+  | "vimax";
 
 export type InspectorClipType =
   | "video"
@@ -19,7 +20,8 @@ export type InspectorClipType =
   | "text"
   | "shape"
   | "svg"
-  | "sticker";
+  | "sticker"
+  | "vimax-shot";
 
 export interface InspectorTabDef {
   id: InspectorTabId;
@@ -36,7 +38,8 @@ export const TAB_DEFS: Record<InspectorTabId, InspectorTabDef> = {
   animate: { id: "animate", label: "Animate", icon: Film },
   ai: { id: "ai", label: "AI", icon: Sparkles },
   style: { id: "style", label: "Style", icon: Type },
-  info:  { id: "info",  label: "Info",  icon: Info  },
+  info: { id: "info", label: "Info", icon: Info },
+  vimax: { id: "vimax", label: "Vimax Shot", icon: Clapperboard },
 };
 
 const TABS_BY_CLIP_TYPE: Record<InspectorClipType, InspectorTabId[]> = {
@@ -47,6 +50,7 @@ const TABS_BY_CLIP_TYPE: Record<InspectorClipType, InspectorTabId[]> = {
   shape:   ["info", "transform", "style", "effects", "animate"],
   svg:     ["info", "transform", "style", "effects", "animate"],
   sticker: ["info", "transform", "effects", "animate"],
+  "vimax-shot": ["vimax"],
 };
 
 export function getTabIdsForClipType(

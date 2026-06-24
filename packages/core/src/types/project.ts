@@ -1,6 +1,7 @@
 import type { Timeline } from "./timeline";
 import type { TextClip } from "../text/types";
 import type { ShapeClip, SVGClip, StickerClip } from "../graphics/types";
+import type { VimaxShotClip } from "./vimax-shot";
 
 export interface ProjectSettings {
   readonly width: number;
@@ -22,6 +23,7 @@ export interface Project {
   readonly shapeClips?: ShapeClip[];
   readonly svgClips?: SVGClip[];
   readonly stickerClips?: StickerClip[];
+  readonly vimaxShotClips?: VimaxShotClip[];
 }
 
 export interface MediaLibrary {

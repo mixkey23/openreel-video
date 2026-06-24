@@ -27,6 +27,7 @@ import {
   MoreHorizontal,
   Command,
   Search,
+  Clapperboard,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -85,6 +86,8 @@ interface ExportState {
 
 export const Toolbar: React.FC = () => {
   const { project, undo, redo, renameProject } = useProjectStore();
+  const apiBase = useProjectStore((s) => s.apiBase);
+  const episodeId = useProjectStore((s) => s.episodeId);
   const {
     openModal,
     selectedItems,
@@ -101,8 +104,50 @@ export const Toolbar: React.FC = () => {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isLtxRendering, setIsLtxRendering] = useState(false);
   const { importMedia } = useProjectStore();
   const { track } = useAnalytics();
+
+  const vimaxShotClips = project.vimaxShotClips ?? [];
+  const hasVimaxShots = vimaxShotClips.length > 0 && !!apiBase && !!episodeId;
+
+  const handleLtxRender = useCallback(async () => {
+    if (!apiBase || !episodeId || isLtxRendering) return;
+
+    const sorted = [...vimaxShotClips].sort((a, b) => a.startTime - b.startTime);
+
+    setIsLtxRendering(true);
+    try {
+      const res = await fetch(
+        `${apiBase}/api/generate/${episodeId}/render/ltx-director`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            frame_rate: 24,
+            global_prompt: "",
+            vimax_shots: sorted.map((c) => ({
+              shot_idx: c.shotIdx,
+              mode: c.mode,
+              ff_desc: c.ffDesc,
+              motion_desc: c.motionDesc,
+              frame_url: c.frameUrl,
+            })),
+          }),
+        },
+      );
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("[LTX Director] Render failed:", txt);
+      } else {
+        console.log("[LTX Director] Render started successfully");
+      }
+    } catch (err) {
+      console.error("[LTX Director] Render request error:", err);
+    } finally {
+      setIsLtxRendering(false);
+    }
+  }, [apiBase, episodeId, vimaxShotClips, isLtxRendering]);
 
   // Local editable project name (committed onBlur / Enter)
   const [projectNameDraft, setProjectNameDraft] = useState(project.name);
@@ -824,6 +869,27 @@ export const Toolbar: React.FC = () => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Render LTX Director (only when vimax shots are present) */}
+        {hasVimaxShots && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleLtxRender}
+                disabled={isLtxRendering}
+                className="inline-flex items-center gap-1.5 px-3 py-[5px] rounded-md bg-indigo-600 text-white font-semibold text-[12px] hover:bg-indigo-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLtxRendering ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Clapperboard size={13} />
+                )}
+                <span>{isLtxRendering ? "Rendering…" : "Render LTX"}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Render {vimaxShotClips.length} vimax shot{vimaxShotClips.length !== 1 ? "s" : ""} via LTX Director</TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Export */}
         {exportState.isExporting ? (

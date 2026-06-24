@@ -117,6 +117,11 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const isImage = track.type === "image";
   const clipStyle = getClipStyle(track.type);
 
+  // VimaxShot detection — synthetic clips with mediaId "vimax-<uuid>"
+  const vimaxClip = clip.mediaId.startsWith("vimax-")
+    ? useProjectStore.getState().project.vimaxShotClips?.find((c) => c.id === clip.id) ?? null
+    : null;
+
   const handleClick = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     if (isDragging || isPendingDrag) return;
@@ -736,7 +741,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/10 pointer-events-none" />
       )}
 
-      {isImage && (
+      {isImage && !vimaxClip && (
         <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-purple-500/10 flex items-center justify-center pointer-events-none">
           {mediaItem?.thumbnailUrl ? (
             <img
@@ -746,6 +751,36 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
             />
           ) : (
             <Image size={24} className="text-purple-400/50" />
+          )}
+        </div>
+      )}
+
+      {vimaxClip && (
+        <div className="absolute inset-0 flex items-center overflow-hidden pointer-events-none">
+          {vimaxClip.frameUrl ? (
+            <img
+              src={vimaxClip.frameUrl}
+              alt=""
+              className="h-full w-auto object-cover opacity-80"
+              draggable={false}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-indigo-900/40">
+              <span className="text-indigo-300 text-xs">🎬</span>
+            </div>
+          )}
+          <div className="absolute bottom-1 left-1 flex gap-1">
+            <span className="rounded bg-black/70 px-1 text-[10px] text-white font-mono">
+              #{vimaxClip.shotIdx}
+            </span>
+            <span className={`rounded px-1 text-[10px] font-bold ${vimaxClip.mode === "i2v" ? "bg-indigo-600 text-white" : "bg-slate-600 text-white"}`}>
+              {vimaxClip.mode.toUpperCase()}
+            </span>
+          </div>
+          {vimaxClip.ffDesc && (
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-1 pb-1 pt-3">
+              <p className="text-[9px] text-white leading-tight line-clamp-2">{vimaxClip.ffDesc}</p>
+            </div>
           )}
         </div>
       )}

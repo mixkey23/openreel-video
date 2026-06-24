@@ -59,6 +59,7 @@ import { EffectsTab } from "./inspector/tabs/EffectsTab";
 import { AiTab } from "./inspector/tabs/AiTab";
 import { InfoTab } from "./inspector/tabs/InfoTab";
 import { groupWordsToSubtitles } from "../../utils/captions-track";
+import { VimaxShotInspector } from "./inspector/VimaxShotInspector";
 
 // Initialize engines as singletons
 const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
@@ -79,6 +80,7 @@ export const InspectorPanel: React.FC = () => {
   const {
     getClip,
     getMediaItem,
+    getVimaxShotClip,
     addSubtitle,
     importSRT,
     updateSubtitle,
@@ -664,6 +666,9 @@ export const InspectorPanel: React.FC = () => {
   const clipType = useMemo(() => {
     if (!selectedClip) return null;
 
+    // Check for vimax-shot clips first (synthetic clips with mediaId "vimax-<uuid>")
+    if (selectedClip.mediaId.startsWith("vimax-")) return "vimax-shot";
+
     // Check mediaId prefix first for text, shape, and SVG clips (they may not be in timeline tracks)
     if (selectedClip.mediaId.startsWith("text-")) {
       return "text";
@@ -995,6 +1000,7 @@ export const InspectorPanel: React.FC = () => {
               />
             </InspectorTabPanel>
 
+<<<<<<< HEAD
             <InspectorTabPanel tab="info" active={activeTab}>
               {(selectedTimelineClip ?? selectedClip) && (
                 <InfoTab
@@ -1004,6 +1010,13 @@ export const InspectorPanel: React.FC = () => {
                   trackType={clipTrack?.type ?? ""}
                 />
               )}
+=======
+            <InspectorTabPanel tab="vimax" active={activeTab}>
+              {(() => {
+                const vimaxClip = project.vimaxShotClips?.find((c) => c.id === clipId);
+                return vimaxClip ? <VimaxShotInspector clip={vimaxClip} /> : null;
+              })()}
+>>>>>>> fba363a (feat(openreel): VimaxShotClip type + storyboard track + LTX Director render)
             </InspectorTabPanel>
 
           </InspectorTabErrorBoundary>
