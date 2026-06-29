@@ -6,12 +6,17 @@
  * timeline via the Framesmith API (/openreel/timeline).
  *
  * Config written by Framesmith before opening the iframe:
- *   sessionStorage['__framesmith_config__'] = { episodeId, apiBase, projectName? }
+ *   sessionStorage['__framesmith_config__'] = { episodeId, apiBase, projectName?, mode? }
  *
- * On init:
+ * On init (mode = "init" or missing):
  * 1. Fetch /api/episodes/{episodeId}/openreel/timeline
  * 2. Create a "Storyboard" image track + VimaxShotClips for each video clip
  * 3. Create an "Audio" track + import speech.wav clips
+ *
+ * On restore (mode = "restore"):
+ * 1. Fetch /api/episodes/{episodeId}/s6/project
+ * 2. Re-fetch blobs from originalUrl for each media item
+ * 3. Call loadProject() to restore the full editor state
  */
 
 import { useEffect, useRef } from "react";
@@ -21,8 +26,14 @@ export const FRAMESMITH_STORAGE_KEY = "__framesmith_config__";
 
 export interface FramesmithConfig {
   episodeId: string;
-  apiBase: string;      // e.g. "http://localhost:8000"
+  apiBase: string;
   projectName?: string;
+  mode?: "init" | "restore";
+  // LTX Director mode
+  videoUrl?: string;
+  audioUrl?: string;
+  // Legacy clip mode
+  clips?: FramesmithClip[];
 }
 
 // Legacy clip format (S5-era) kept for backward compat
@@ -36,6 +47,9 @@ export interface FramesmithClip {
   beat_id?: string;
   name?: string;
 }
+
+/** Module-level episodeId so the auto-save hook can POST back to Framesmith. */
+export let framesmithEpisodeId: string | null = null;
 
 async function fetchAsFile(url: string, filename: string, mimeType: string): Promise<File> {
   const response = await fetch(url);
@@ -60,6 +74,59 @@ export function useFramesmithInit() {
       config = JSON.parse(configStr);
     } catch {
       console.error("[Framesmith] Invalid config in sessionStorage");
+      return;
+    }
+
+    // Persist episodeId for the auto-save and bridge hooks
+    if (config.episodeId) {
+      framesmithEpisodeId = config.episodeId;
+    }
+
+    // ── RESTORE MODE: load previously saved OpenReel project ──────────
+    if (config.mode === "restore" && config.episodeId) {
+      sessionStorage.removeItem(FRAMESMITH_STORAGE_KEY);
+      console.log("[Framesmith] Restore mode — loading saved project for episode", config.episodeId);
+
+      setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/episodes/${config.episodeId}/s6/project`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const savedProject = await res.json() as {
+            mediaLibrary?: { items?: Array<Record<string, unknown>> };
+            [key: string]: unknown;
+          };
+
+          // Re-fetch media blobs from their originalUrl (blobs can't be JSON-serialized)
+          const restoredItems = await Promise.all(
+            (savedProject.mediaLibrary?.items ?? []).map(async (item) => {
+              const originalUrl = item.originalUrl as string | undefined;
+              if (!originalUrl) return item;
+              try {
+                const blobRes = await fetch(originalUrl);
+                if (!blobRes.ok) return item;
+                const blob = await blobRes.blob();
+                return { ...item, blob, thumbnailUrl: null, filmstripThumbnails: undefined };
+              } catch {
+                return item;
+              }
+            })
+          );
+
+          useProjectStore.getState().loadProject({
+            ...savedProject,
+            mediaLibrary: {
+              ...(savedProject.mediaLibrary ?? {}),
+              items: restoredItems,
+            },
+          } as Parameters<typeof useProjectStore.getState().loadProject>[0]);
+          console.log("[Framesmith] Restore complete — project loaded from server");
+        } catch (err) {
+          console.error("[Framesmith] Restore failed, falling back to fresh init:", err);
+          const fallbackConfig = { ...config, mode: "init" as const };
+          sessionStorage.setItem(FRAMESMITH_STORAGE_KEY, JSON.stringify(fallbackConfig));
+          initialized.current = false;
+        }
+      }, 100);
       return;
     }
 
