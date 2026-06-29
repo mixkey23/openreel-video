@@ -86,7 +86,7 @@ export const AiTab: React.FC<AiTabProps> = ({
 }) => {
   return (
     <>
-      {clipType === "video" && (
+      {(clipType === "video" || clipType === "audio") && (
         <>
           <InspectorSection
             title="AI Auto-Captions"
@@ -102,41 +102,43 @@ export const AiTab: React.FC<AiTabProps> = ({
                 className="hidden"
               />
 
-              {/* Audio source toggle */}
-              <div>
-                <label className="text-[10px] text-text-secondary block mb-1.5">
-                  Audio Source
-                </label>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setAudioSource("audio-track")}
-                    disabled={isTranscribing}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] transition-colors ${
-                      audioSource === "audio-track"
-                        ? "bg-primary text-white font-medium"
-                        : "bg-background-tertiary text-text-secondary border border-border hover:text-text-primary"
-                    }`}
-                  >
-                    <AudioLines size={11} />
-                    Audio Track
-                  </button>
-                  <button
-                    onClick={() => setAudioSource("video")}
-                    disabled={isTranscribing}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] transition-colors ${
-                      audioSource === "video"
-                        ? "bg-primary text-white font-medium"
-                        : "bg-background-tertiary text-text-secondary border border-border hover:text-text-primary"
-                    }`}
-                  >
-                    <Film size={11} />
-                    Video File
-                  </button>
+              {/* Audio source toggle — only for video clips */}
+              {clipType === "video" && (
+                <div>
+                  <label className="text-[10px] text-text-secondary block mb-1.5">
+                    Audio Source
+                  </label>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setAudioSource("audio-track")}
+                      disabled={isTranscribing}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+                        audioSource === "audio-track"
+                          ? "bg-primary text-white font-medium"
+                          : "bg-background-tertiary text-text-secondary border border-border hover:text-text-primary"
+                      }`}
+                    >
+                      <AudioLines size={11} />
+                      Audio Track
+                    </button>
+                    <button
+                      onClick={() => setAudioSource("video")}
+                      disabled={isTranscribing}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] transition-colors ${
+                        audioSource === "video"
+                          ? "bg-primary text-white font-medium"
+                          : "bg-background-tertiary text-text-secondary border border-border hover:text-text-primary"
+                      }`}
+                    >
+                      <Film size={11} />
+                      Video File
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Track selector — only shown when audio-track mode is active */}
-              {audioSource === "audio-track" && (
+              {/* Track selector — only for video clips in audio-track mode */}
+              {clipType === "video" && audioSource === "audio-track" && (
                 <div>
                   <label className="text-[10px] text-text-secondary block mb-1">
                     Track

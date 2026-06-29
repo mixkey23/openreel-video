@@ -489,6 +489,45 @@ export const InspectorPanel: React.FC = () => {
       const clipStart = regularClip.startTime;
       const clipEnd   = regularClip.startTime + regularClip.duration;
 
+      // ── AUDIO CLIP mode: transcribe the clip itself ───────────────────
+      if (clipType === "audio") {
+        const mediaItem = getMediaItem(selectedClip.mediaId);
+        if (!mediaItem?.blob) throw new Error("No media found for audio clip");
+
+        setTranscriptionProgress({ phase: "transcribing", progress: 10, message: "Transcribing audio clip…" });
+
+        const formData = new FormData();
+        formData.append("audio", mediaItem.blob, "audio.wav");
+        if (targetLanguage && targetLanguage !== "none") formData.append("target_language", targetLanguage);
+
+        const res = await fetch(`${OPENREEL_TRANSCRIBE_URL}/transcribe`, { method: "POST", body: formData });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+          throw new Error(`Transcription failed: ${String(err.detail ?? res.status)}`);
+        }
+
+        const data = await res.json() as { text: string; words: Array<{ word: string; start: number; end: number }> };
+        const blocks = groupWordsToSubtitles(data.words, clipStart, subtitleHold);
+
+        let totalSubtitles = 0;
+        if (blocks.length === 0 && data.text?.trim()) {
+          const lastWordEnd = data.words?.length
+            ? clipStart + data.words[data.words.length - 1].end
+            : clipEnd;
+          addSubtitle({ id: `ac-${Date.now()}-0`, text: data.text.trim(), startTime: clipStart, endTime: lastWordEnd + subtitleHold, animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+          totalSubtitles = 1;
+        } else {
+          for (let j = 0; j < blocks.length; j++) {
+            addSubtitle({ id: `ac-${Date.now()}-${j}`, ...blocks[j], animationStyle: defaultAnimationStyle } as Parameters<typeof addSubtitle>[0]);
+          }
+          totalSubtitles = blocks.length;
+        }
+
+        setTranscriptionProgress({ phase: "complete", progress: 100, message: `Added ${totalSubtitles} subtitle${totalSubtitles !== 1 ? "s" : ""}` });
+        setTimeout(() => { setTranscriptionProgress(null); setIsTranscribing(false); }, 2000);
+        return;
+      }
+
       // ── VIDEO FILE mode: extract audio from the video blob ────────────
       if (audioSource === "video") {
         const transcriptionService = initializeTranscriptionService({
@@ -572,6 +611,7 @@ export const InspectorPanel: React.FC = () => {
     }
   }, [
     selectedClip,
+    clipType,
     isTranscribing,
     getMediaItem,
     getClip,
@@ -580,6 +620,7 @@ export const InspectorPanel: React.FC = () => {
     targetLanguage,
     audioSource,
     selectedAudioTrackId,
+    subtitleHold,
     project.timeline.tracks,
   ]);
 
@@ -1000,7 +1041,6 @@ export const InspectorPanel: React.FC = () => {
               />
             </InspectorTabPanel>
 
-<<<<<<< HEAD
             <InspectorTabPanel tab="info" active={activeTab}>
               {(selectedTimelineClip ?? selectedClip) && (
                 <InfoTab
@@ -1010,13 +1050,13 @@ export const InspectorPanel: React.FC = () => {
                   trackType={clipTrack?.type ?? ""}
                 />
               )}
-=======
+            </InspectorTabPanel>
+
             <InspectorTabPanel tab="vimax" active={activeTab}>
               {(() => {
                 const vimaxClip = project.vimaxShotClips?.find((c) => c.id === clipId);
                 return vimaxClip ? <VimaxShotInspector clip={vimaxClip} /> : null;
               })()}
->>>>>>> fba363a (feat(openreel): VimaxShotClip type + storyboard track + LTX Director render)
             </InspectorTabPanel>
 
           </InspectorTabErrorBoundary>

@@ -3,8 +3,8 @@ import { Mic, MicOff, Languages, AlertCircle, Captions, Loader2, CheckCircle, Ch
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useSettingsStore } from "../../../stores/settings-store";
-import { SpeechToTextEngine } from "@openreel/core";
-import type { TranscriptionProgress, TranscriptionSegment } from "@openreel/core";
+import { SpeechToTextEngine, CAPTION_ANIMATION_STYLES, getAnimationStyleDisplayName } from "@openreel/core";
+import type { TranscriptionProgress, TranscriptionSegment, CaptionAnimationStyle } from "@openreel/core";
 import {
   Select,
   SelectTrigger,
@@ -71,6 +71,7 @@ export const AutoCaptionPanel: React.FC = () => {
   const [progress, setProgress]                 = useState<TranscriptionProgress | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState("en-US");
   const [selectedStyle, setSelectedStyle]       = useState("default");
+  const [animationStyle, setAnimationStyle]     = useState<CaptionAnimationStyle>("word-highlight");
   const [segments, setSegments]                 = useState<TranscriptionSegment[]>([]);
   const [error, setError]                       = useState<string | null>(null);
 
@@ -229,10 +230,11 @@ export const AutoCaptionPanel: React.FC = () => {
             ? clip.startTime + data.words[data.words.length - 1].end
             : clip.startTime + clip.duration;
           addSubtitle({
-            id:        `tl-${Date.now()}-${i}-0`,
-            text:      data.text.trim(),
-            startTime: clip.startTime,
-            endTime:   lastWordEnd + tlHold,
+            id:             `tl-${Date.now()}-${i}-0`,
+            text:           data.text.trim(),
+            startTime:      clip.startTime,
+            endTime:        lastWordEnd + tlHold,
+            animationStyle,
           } as Parameters<typeof addSubtitle>[0]);
           totalSubtitles++;
         } else {
@@ -240,6 +242,7 @@ export const AutoCaptionPanel: React.FC = () => {
             addSubtitle({
               id: `tl-${Date.now()}-${i}-${j}`,
               ...blocks[j],
+              animationStyle,
             } as Parameters<typeof addSubtitle>[0]);
           }
           totalSubtitles += blocks.length;
@@ -258,7 +261,7 @@ export const AutoCaptionPanel: React.FC = () => {
   }, [
     project, tlRangeStart, tlRangeEnd, tlLang, tlTranslate, tlTargetLang,
     tlAudioSource, tlAudioTrackId, tlVideoTrackId, tlHold,
-    whisperxModel, timelineDuration, addSubtitle, applySubtitleStylePreset, selectedStyle,
+    whisperxModel, timelineDuration, addSubtitle, applySubtitleStylePreset, selectedStyle, animationStyle,
   ]);
 
   const isTimelineBusy = tlStatus === "transcribing";
@@ -297,7 +300,7 @@ export const AutoCaptionPanel: React.FC = () => {
         </button>
       </div>
 
-      {/* Common: style */}
+      {/* Common: style + animation */}
       <div className="space-y-2 p-3 bg-background-tertiary rounded-lg">
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-text-secondary">Caption Style</span>
@@ -308,6 +311,19 @@ export const AutoCaptionPanel: React.FC = () => {
             <SelectContent className="bg-background-secondary border-border">
               {CAPTION_STYLE_PRESETS.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-text-secondary">Animation Style</span>
+          <Select value={animationStyle} onValueChange={(v) => setAnimationStyle(v as CaptionAnimationStyle)} disabled={isTranscribing || isTimelineBusy}>
+            <SelectTrigger className="w-auto min-w-[110px] bg-background-secondary border-border text-text-primary text-[10px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background-secondary border-border">
+              {CAPTION_ANIMATION_STYLES.map((s) => (
+                <SelectItem key={s} value={s}>{getAnimationStyleDisplayName(s)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
