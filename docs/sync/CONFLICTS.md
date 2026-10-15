@@ -14,14 +14,19 @@ Rama `sync/upstream-merge` (publicada en el fork), creada desde `upstream/main`;
 | `813f9ca` | `stores/project-store.test.ts` | el describe de setClipAudioPlan del fork se anexa como bloque propio al final (upstream cambió el final del fichero); project-store.ts aplicó sin conflicto | upstream+reaplicado |
 | `f878ad1 (parcial)` | `hooks/use-framesmith-autosave.ts` | se porta solo la parte de persistencia (save-now, subida de medios externos, mensajes al padre); InspectorPanel/AutoCaptionPanel/AiTab de ese commit pasan a la fase híbrida de captions | fork |
 | `captions (4f699e9, 0401c75, 3d5b4b1, 6d8bc23, d2dec11, 6f76ba3, 364bb24, 187d395, 8de049f, c316c5a, 2e96b38, 9856e2f, cc26545, 1fea597, f878ad1 parte captions)` | `inspector/AutoCaptionPanel + utils/caption-* + services/caption-*` | sustituidos por el panel híbrido (alcance del fork, motor local/navegador, salida animada o clips de texto, recorte corregido) | nuevo código |
+| `a9386c9` | `components/editor/AssetsPanel.tsx` | solo imports de iconos: se conserva el import de upstream (@/icons/lucide-compat) y se añade Captions; Preview.tsx (clic para seleccionar subtítulo) aplicó sin conflicto | fusión |
+| `a9386c9..9663a1c + 1fea597 (lista de subtítulos)` | `panels/SubtitleListPanel, utils/caption-style, AutoCaptionPanel` | upstream cambió applySubtitleStylePreset (solo clips de texto de Captions): presets y «Apply to All» pasan a una acción subtitle/setAll sobre timeline.subtitles; presets de subtítulos animados = los del store (tamaños 1080p) escalados al lienzo | adaptación |
+| `ce9e959` | `InspectorPanel.tsx, inspector/clip-tabs.config.ts` | upstream pasó el inspector a secciones apiladas: se parte de la versión de upstream y la Info se añade como primera sección «Clip Info»; clip-tabs.config (+ test) incluye info | upstream+reaplicado |
+| `27eaa70, 70d70d8` | `shell/InspectorTabs, AssetsPanel` | omitidos: InspectorTabs ya no se usa y el panel Assets de upstream es un raíl vertical con etiqueta (el desborde que arreglaban ya no existe) | omitidos |
 
 **Descartado a propósito:** `97b50a8` (inspector en pestañas #71, variante del fork): upstream ya trae su versión (`3ee0205`).
 
-## Estado
+## Estado — reaplicación completa
 
-- **26 commits** sobre `upstream/main`; `tsc` sin errores; suite completa de `apps/web`: **205 ficheros · 1 142 tests · 0 fallos** (línea base de upstream: 1 042).
-- **Hecho:** núcleo Framesmith (bootstrap, bridge, persistencia, `originalUrl`, música, autosave con `save-now`), ComfyUI TTS tal cual, pestaña «Local AI» y **captions híbridos** (alcance clip/rango/pistas de audio y vídeo, motor WhisperX local o navegador, salida animada o clips de texto, recorte corregido). Contratos OS-201, 202, 203, 205 y música en verde.
+- **Los 49 commits propios están resueltos:** 32 aplicados con su commit original (`-x`), 17 sustituidos u omitidos a propósito (bloque de captions → panel híbrido; `97b50a8`, `27eaa70`, `70d70d8` sin objeto en upstream).
+- Rama `sync/upstream-merge`: **36 commits** sobre `upstream/main` · `tsc` sin errores · suite completa de `apps/web`: **207 ficheros · 1 155 tests · 0 fallos** (línea base de upstream: 1 042; los 8 fallos previos del fork están resueltos).
+- **Funciones del fork presentes:** núcleo Framesmith (bootstrap, bridge, persistencia, `originalUrl`, música, autosave con `save-now`), ComfyUI TTS tal cual, pestaña «Local AI», captions híbridos, lista de subtítulos con estilo global, clic en la vista previa y sección «Clip Info».
 - **Decidido: no se porta** Ollama en «enhance text» (se usa «OpenAI-compatible» con `http://<host>:11434/v1`; pendiente de comprobar CORS) ni el modo micrófono (upstream lo eliminó).
-- **Pendiente (9 commits):** lista de subtítulos con estilo global + clic en la vista previa (`a9386c9`, `55c2329`, `7ea5adb`, `8ecf9ee`, `3632771`, `9663a1c`), pestaña Info (`ce9e959`), pestañas solo-icono (`27eaa70`, `70d70d8`).
+- **Adaptaciones que cambian comportamiento respecto al fork** (revisar en la prueba humana): sección Clip Info plegada por defecto y en forma de sección (no pestaña); máximo de palabras por bloque lo fija el control de upstream (5) en lugar de 10; Preset/Apply to All del panel Subtitles actúan con una sola acción; sin Piper.
 
-> Nota: los commits propios de `apps/web/dist/` (builds) también se reaplican; en el cierre se descartan y se reconstruye `dist` una sola vez (OS-601). `apps/web/dist` está en el `.gitignore` de upstream.
+> Pendiente para cerrar G2: reconstruir `apps/web/dist` una sola vez (los commits propios de builds se reaplicaron y `apps/web/dist` está en el `.gitignore` de upstream), repetir la auditoría de pérdidas sobre esta rama, OS-503 (ducking), OS-506/507 (peso y red) y la prueba humana de S6 con `episode_035`.
