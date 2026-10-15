@@ -1,0 +1,1 @@
+import{j as n}from"./react-B4OUqiC8.js";import{jG as t}from"./index-BERazaFU.js";function d({className:e,keys:o,...r}){return n.jsx("kbd",{className:t("inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-bg-2 px-1.5 font-mono text-[10px] font-semibold uppercase leading-none text-fg-2 shadow-sm",e),...r,children:o})}export{d as T};

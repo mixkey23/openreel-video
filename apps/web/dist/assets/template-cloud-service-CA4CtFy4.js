@@ -1,0 +1,16 @@
+import{jH as a}from"./index-BERazaFU.js";import{O as s}from"./api-endpoints-DG8kiT88.js";/**
+ * @license lucide-react v0.555.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const o=[["path",{d:"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16",key:"jecpp"}],["rect",{width:"20",height:"14",x:"2",y:"6",rx:"2",key:"i6l2r4"}]],d=a("briefcase",o);/**
+ * @license lucide-react v0.555.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const c=[["rect",{width:"18",height:"18",x:"3",y:"3",rx:"2",ry:"2",key:"1m3agn"}],["circle",{cx:"9",cy:"9",r:"2",key:"af1f0g"}],["path",{d:"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",key:"1xmnt7"}]],m=a("image",c);/**
+ * @license lucide-react v0.555.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const l=[["rect",{width:"7",height:"7",x:"3",y:"3",rx:"1",key:"1g98yp"}],["rect",{width:"7",height:"7",x:"14",y:"3",rx:"1",key:"6d4xhi"}],["rect",{width:"7",height:"7",x:"14",y:"14",rx:"1",key:"nxv5o0"}],["rect",{width:"7",height:"7",x:"3",y:"14",rx:"1",key:"1bb6yr"}]],f=a("layout-grid",l),n=s;class i{apiUrl;constructor(t=n){this.apiUrl=t}async listTemplates(){try{const t=await fetch(`${this.apiUrl}/templates`);if(!t.ok)throw new Error(`HTTP error! status: ${t.status}`);return(await t.json()).templates||[]}catch(t){return console.error("Failed to list templates from cloud:",t),[]}}async getTemplate(t){try{const e=await fetch(`${this.apiUrl}/templates/${t}`);if(!e.ok){if(e.status===404)return null;throw new Error(`HTTP error! status: ${e.status}`)}return await e.json()}catch(e){return console.error(`Failed to get template ${t} from cloud:`,e),null}}async uploadTemplate(t){try{const e=await fetch(`${this.apiUrl}/templates`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(t)}),r=await e.json();return e.ok?{success:!0}:{success:!1,error:r.error||"Upload failed"}}catch(e){return console.error("Failed to upload template to cloud:",e),{success:!1,error:e instanceof Error?e.message:"Upload failed"}}}async deleteTemplate(t){try{const e=await fetch(`${this.apiUrl}/templates/${t}`,{method:"DELETE"}),r=await e.json();return e.ok?{success:!0}:{success:!1,error:r.error||"Delete failed"}}catch(e){return console.error(`Failed to delete template ${t} from cloud:`,e),{success:!1,error:e instanceof Error?e.message:"Delete failed"}}}async checkHealth(){try{return(await fetch(`${this.apiUrl}/health`)).ok}catch{return!1}}async listScriptableTemplates(){try{const t=await fetch(`${this.apiUrl}/templates/scriptable`);return t.ok?(await t.json()).templates||[]:[]}catch(t){return console.error("Failed to list scriptable templates from cloud:",t),[]}}async getScriptableTemplate(t){try{const e=await fetch(`${this.apiUrl}/templates/scriptable/${t}`);if(!e.ok){if(e.status===404)return null;throw new Error(`HTTP error! status: ${e.status}`)}return await e.json()}catch(e){return console.error(`Failed to get scriptable template ${t} from cloud:`,e),null}}}const y=new i;export{d as B,m as I,f as L,y as t};
