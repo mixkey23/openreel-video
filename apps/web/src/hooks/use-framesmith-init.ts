@@ -14,6 +14,7 @@
 
 import { useEffect, useRef } from "react";
 import { useProjectStore } from "../stores/project-store";
+import { applyMusicToStore } from "./use-framesmith-music";
 
 export const FRAMESMITH_STORAGE_KEY = "__framesmith_config__";
 
@@ -33,6 +34,8 @@ export interface FramesmithConfig {
   projectName?: string;
   episodeId?: string;
   mode?: "init" | "restore";
+  /** Musical Director track (approved sequences only); absent when the feature is off. See utils/framesmith-music.ts. */
+  music?: unknown;
 }
 
 /** Module-level episodeId so the auto-save hook can POST back to Framesmith. */
@@ -106,6 +109,8 @@ export function useFramesmithInit() {
 
           useProjectStore.getState().loadProject(projectWithMedia);
           console.log("[Framesmith] Restore complete — project loaded from server");
+          // Musical Director: idempotent merge (same version → untouched; new version → replace non-edited cues only)
+          if (config.music) await applyMusicToStore(config.music);
         } catch (err) {
           console.error("[Framesmith] Restore failed, falling back to fresh init:", err);
           // Fallback: re-run as fresh init by re-writing config without mode:restore
@@ -269,6 +274,9 @@ export function useFramesmithInit() {
           console.error(`[Framesmith] Error importing audio beat=${beatId}:`, err);
         }
       }
+
+      // Musical Director track (only when Framesmith sent one)
+      if (config.music) await applyMusicToStore(config.music);
 
       sessionStorage.removeItem(FRAMESMITH_STORAGE_KEY);
       console.log(`[Framesmith] Done — ${videosImported} videos + ${audioImported} audio clips`);

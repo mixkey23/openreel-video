@@ -14,6 +14,7 @@ import { useKieAIPoller } from "./hooks/useKieAIPoller";
 import { useFramesmithInit } from "./hooks/use-framesmith-init";
 import { useFramesmithBridge } from "./hooks/use-framesmith-bridge";
 import { useFramesmithAutosave } from "./hooks/use-framesmith-autosave";
+import { useFramesmithMusicSync } from "./hooks/use-framesmith-music";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 import { TooltipProvider } from "@openreel/ui";
 
@@ -53,6 +54,7 @@ function App() {
   useFramesmithInit();
   useFramesmithBridge();
   useFramesmithAutosave();
+  useFramesmithMusicSync();
 
   useEffect(() => {
     if (hasHandledInitialRoute.current) return;

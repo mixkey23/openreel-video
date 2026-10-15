@@ -1551,4 +1551,59 @@ Ignored block`;
     expect(captionClips).toHaveLength(1);
     expect(captionClips[0]?.text).toBe("Hello world");
   });
+
+  describe("setClipAudioPlan (Framesmith Musical Director)", () => {
+    const loadWithAudioClip = () => {
+      const clip: Clip = {
+        id: "audio-clip", mediaId: "m1", trackId: "t-audio", startTime: 2, duration: 8, inPoint: 0, outPoint: 8, effects: [], audioEffects: [],
+        transform: { position: { x: 0.5, y: 0.5 }, scale: { x: 1, y: 1 }, rotation: 0, anchor: { x: 0.5, y: 0.5 }, opacity: 1 },
+        volume: 1, keyframes: [], metadata: { keep: "me" },
+      };
+      const project: Project = {
+        id: "p", name: "P", createdAt: 1, modifiedAt: 1,
+        settings: { width: 1920, height: 1080, frameRate: 30, sampleRate: 48000, channels: 2 },
+        mediaLibrary: { items: [] },
+        timeline: {
+          tracks: [{ id: "t-audio", type: "audio", name: "Music", clips: [clip], transitions: [], locked: false, hidden: false, muted: false, solo: false }],
+          subtitles: [], duration: 10, markers: [],
+        },
+      };
+      useProjectStore.getState().loadProject(project);
+    };
+    const get = () => useProjectStore.getState().project.timeline.tracks[0].clips[0];
+
+    it("sets volume, fade, automation and merges metadata without tagging the clip as ducked", () => {
+      loadWithAudioClip();
+      const ok = useProjectStore.getState().setClipAudioPlan("audio-clip", {
+        volume: 0.6, fade: { fadeIn: 0.5, fadeOut: 1 },
+        volumeAutomation: [{ time: 0, value: 1 }, { time: 2, value: 0.35 }],
+        metadata: { framesmithMusic: { cue_id: "c1" } },
+      });
+      expect(ok).toBe(true);
+      const c = get();
+      expect(c.volume).toBe(0.6);
+      expect(c.fade).toEqual({ fadeIn: 0.5, fadeOut: 1 });
+      expect(c.automation?.volume).toEqual([{ time: 0, value: 1 }, { time: 2, value: 0.35 }]);
+      expect((c.metadata as Record<string, unknown>).keep).toBe("me");
+      expect((c.metadata as Record<string, unknown>).framesmithMusic).toEqual({ cue_id: "c1" });
+      expect((c.metadata as Record<string, unknown>).audioDucking).toBeUndefined();
+    });
+
+    it("clamps gains to OpenReel's 0..4 range and leaves untouched fields alone", () => {
+      loadWithAudioClip();
+      useProjectStore.getState().setClipAudioPlan("audio-clip", { volume: 9, volumeAutomation: [{ time: 0, value: -1 }, { time: 1, value: 7 }] });
+      const c = get();
+      expect(c.volume).toBe(4);
+      expect(c.automation?.volume).toEqual([{ time: 0, value: 0 }, { time: 1, value: 4 }]);
+      expect(c.fade).toBeUndefined();
+      expect(c.startTime).toBe(2);
+    });
+
+    it("returns false for an unknown clip and an empty plan changes nothing", () => {
+      loadWithAudioClip();
+      expect(useProjectStore.getState().setClipAudioPlan("nope", { volume: 1 })).toBe(false);
+      useProjectStore.getState().setClipAudioPlan("audio-clip", {});
+      expect(get().volume).toBe(1);
+    });
+  });
 });

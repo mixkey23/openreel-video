@@ -458,6 +458,20 @@ export interface ProjectState {
     points: AutomationPoint[],
   ) => boolean;
   clearClipAudioDucking: (clipId: string) => boolean;
+  /**
+   * Generic, side-effect-free setter for a clip's audio plan: gain, fades, volume automation and metadata keys
+   * (merged, never replaced). Unlike setClipAudioDucking it does not tag the clip as "ducked". Used by the
+   * Framesmith bridge to apply Musical Director cues. Volume is clamped to 0..4, automation values to 0..4.
+   */
+  setClipAudioPlan: (
+    clipId: string,
+    plan: {
+      volume?: number;
+      fade?: { fadeIn: number; fadeOut: number };
+      volumeAutomation?: AutomationPoint[];
+      metadata?: Record<string, unknown>;
+    },
+  ) => boolean;
 
   // Keyframe actions
   updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => boolean;
@@ -5996,6 +6010,34 @@ export const useProjectStore = create<ProjectState>()(
             ...(clip.metadata ?? {}),
             audioDucking: { ...settings },
           },
+        }));
+
+        if (!updatedProject) {
+          return false;
+        }
+
+        set({ project: updatedProject });
+        return true;
+      },
+
+      setClipAudioPlan: (clipId, plan) => {
+        const { project } = get();
+        const clamp = (v: number) => Math.min(4, Math.max(0, v));
+        const updatedProject = updateProjectClip(project, clipId, (clip) => ({
+          ...clip,
+          ...(plan.volume !== undefined && Number.isFinite(plan.volume) ? { volume: clamp(plan.volume) } : {}),
+          ...(plan.fade
+            ? { fade: { fadeIn: Math.max(0, plan.fade.fadeIn), fadeOut: Math.max(0, plan.fade.fadeOut) } }
+            : {}),
+          ...(plan.volumeAutomation
+            ? {
+                automation: {
+                  ...(clip.automation ?? {}),
+                  volume: plan.volumeAutomation.map((point) => ({ time: point.time, value: clamp(point.value) })),
+                },
+              }
+            : {}),
+          ...(plan.metadata ? { metadata: { ...(clip.metadata ?? {}), ...plan.metadata } } : {}),
         }));
 
         if (!updatedProject) {
