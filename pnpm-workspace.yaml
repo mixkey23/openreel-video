@@ -1,6 +1,11 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - "apps/web"
+  - "apps/image"
+  - "packages/core"
+  - "packages/ui"
+  - "packages/agent"
+  - "packages/creation-schema"
+  - "packages/image-core"
 patchedDependencies:
   "@ffmpeg/core-mt@0.12.6": "patches/@ffmpeg__core-mt@0.12.6.patch"
   "@ffmpeg/core@0.12.6": "patches/@ffmpeg__core@0.12.6.patch"
