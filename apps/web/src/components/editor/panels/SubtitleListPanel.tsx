@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
-import { SUBTITLE_PRESETS } from "../../../stores/project/subtitle-helpers";
+import { OVERLAY_PRESET_NAMES, overlayStyle } from "../../../utils/caption-style";
 import type { SubtitleStyle } from "@openreel/core";
 
 const formatTime = (seconds: number): string => {
@@ -12,7 +12,7 @@ const formatTime = (seconds: number): string => {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toFixed(2).padStart(5, "0")}`;
 };
 
-const PRESET_NAMES = Object.keys(SUBTITLE_PRESETS);
+const PRESET_NAMES = OVERLAY_PRESET_NAMES;
 
 const BG_OPACITIES: Array<{ label: string; alpha: string }> = [
   { label: "None",  alpha: "transparent" },
@@ -72,8 +72,8 @@ function styleFromSubtitles(subtitles: ReturnType<typeof useProjectStore.getStat
 export const SubtitleListPanel: React.FC = () => {
   const subtitles      = useProjectStore((s) => s.project.timeline.subtitles);
   const removeSubtitle = useProjectStore((s) => s.removeSubtitle);
-  const updateSubtitle = useProjectStore((s) => s.updateSubtitle);
-  const applyPreset    = useProjectStore((s) => s.applySubtitleStylePreset);
+  const executeAction  = useProjectStore((s) => s.executeAction);
+  const canvasHeight   = useProjectStore((s) => s.project.settings.height);
   const select         = useUIStore((s) => s.select);
   const selectedItems  = useUIStore((s) => s.selectedItems);
 
@@ -85,17 +85,24 @@ export const SubtitleListPanel: React.FC = () => {
   const set_ = (patch: Partial<SubtitleStyle>) =>
     setDraft((prev) => ({ ...prev, ...patch }));
 
-  const applyToAll = () => {
-    for (const sub of subtitles) {
-      updateSubtitle(sub.id, { style: draft });
-    }
+  // One action (one undo step, no interleaved updates) restyles every subtitle.
+  const applyStyleToAll = (style: SubtitleStyle) => {
+    const current = useProjectStore.getState().project.timeline.subtitles;
+    void executeAction({
+      type: "subtitle/setAll",
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      params: { subtitles: current.map((sub) => ({ ...sub, style })) },
+    });
   };
 
-  const handlePreset = async (name: string) => {
-    await applyPreset(name);
-    // Sync draft to the newly applied style
-    const updated = useProjectStore.getState().project.timeline.subtitles;
-    setDraft(styleFromSubtitles(updated));
+  const applyToAll = () => applyStyleToAll(draft);
+
+  // Presets restyle the animated subtitles listed here (not the text clips on the Captions track).
+  const handlePreset = (name: string) => {
+    const style = overlayStyle(name, canvasHeight);
+    setDraft(style);
+    applyStyleToAll(style);
   };
 
   const sorted = [...subtitles].sort((a, b) => a.startTime - b.startTime);

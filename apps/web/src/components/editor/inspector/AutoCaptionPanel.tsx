@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CAPTION_ANIMATION_STYLES,
-  SUBTITLE_STYLE_PRESETS,
   getAnimationStyleDisplayName,
   type CaptionAnimationStyle,
   type Subtitle,
@@ -27,7 +26,12 @@ import { useUIStore } from "../../../stores/ui-store";
 import { framesmithEpisodeId } from "../../../hooks/use-framesmith-init";
 import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
 import { audioBufferToWhisperSamples } from "../../../utils/whisper-audio";
-import { scaleOverlayStyle } from "../../../utils/caption-style";
+import {
+  OVERLAY_PRESET_NAMES,
+  TEXT_CLIP_PRESET_NAMES,
+  overlayStyle,
+  textClipStyle,
+} from "../../../utils/caption-style";
 import {
   collectCaptionJobs,
   findClip,
@@ -44,7 +48,6 @@ import {
   type WhisperModelKey,
 } from "../../../workers/whisper-models";
 
-const CAPTION_STYLE_PRESETS = ["default", "modern", "bold", "cinematic", "minimal"] as const;
 const WHISPER_LANGUAGES = [
   { code: "auto", name: "Auto-detect" },
   { code: "en", name: "English" },
@@ -336,9 +339,8 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
         throw new Error(skipped[0]?.reason ?? "No speech was detected.");
       }
 
-      const presetStyle = SUBTITLE_STYLE_PRESETS[selectedStyle] ?? SUBTITLE_STYLE_PRESETS.default;
       if (outputMode === "overlay") {
-        const style = scaleOverlayStyle(presetStyle, state.project.settings.height);
+        const style = overlayStyle(selectedStyle, state.project.settings.height);
         const added: Subtitle[] = blocks.map((block) => ({
           id: `whisper-${crypto.randomUUID()}`,
           text: block.text,
@@ -362,7 +364,7 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
               text: block.text,
               startTime: block.startTime,
               endTime: block.endTime,
-              style: presetStyle,
+              style: textClipStyle(selectedStyle),
             },
             {
               captionSource: engine === "server" ? "whisperx" : "whisper",
@@ -655,7 +657,7 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
             value={selectedStyle}
             onChange={setSelectedStyle}
             isDisabled={isTranscribing}
-            options={CAPTION_STYLE_PRESETS.map((preset) => ({
+            options={(outputMode === "overlay" ? OVERLAY_PRESET_NAMES : TEXT_CLIP_PRESET_NAMES).map((preset) => ({
               label: preset[0].toUpperCase() + preset.slice(1),
               value: preset,
             }))}
@@ -669,7 +671,10 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
             size="sm"
             width={190}
             value={outputMode}
-            onChange={(value) => setOutputMode(value as OutputMode)}
+            onChange={(value) => {
+              setOutputMode(value as OutputMode);
+              setSelectedStyle("default"); // preset families differ per output
+            }}
             isDisabled={isTranscribing}
             options={[
               { label: "Animated subtitles", value: "overlay" },
