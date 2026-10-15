@@ -277,8 +277,11 @@ export interface MotionThreeRenderInput {
 type MotionThreeCanvas = OffscreenCanvas | HTMLCanvasElement;
 
 const DEG = Math.PI / 180;
-const DEFAULT_TEXT3D_FONT_URL =
-  "https://threejs.org/examples/fonts/helvetiker_bold.typeface.json";
+// Fork: the font ships with the app (public/fonts), so 3D text works offline and under a sub-path base
+// such as Framesmith's /openreel/ instead of fetching it from threejs.org.
+const APP_BASE_URL =
+  (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/";
+const DEFAULT_TEXT3D_FONT_URL = `${APP_BASE_URL}fonts/helvetiker_bold.typeface.json`;
 
 const clamp01 = (value: number): number =>
   value < 0 ? 0 : value > 1 ? 1 : value;

@@ -17,8 +17,9 @@ import type { BlendMode } from "@openreel/core";
 const FONT_CACHE = new Map<string, Font>();
 const FONT_LOADING = new Map<string, Promise<Font>>();
 
-const DEFAULT_3D_FONT_URL = "/fonts/helvetiker_regular.typeface.json";
-const DEFAULT_3D_BOLD_FONT_URL = "/fonts/helvetiker_bold.typeface.json";
+// Resolve against the app base so the fonts load under Framesmith's /openreel/ sub-path too.
+const DEFAULT_3D_FONT_URL = `${import.meta.env.BASE_URL}fonts/helvetiker_regular.typeface.json`;
+const DEFAULT_3D_BOLD_FONT_URL = `${import.meta.env.BASE_URL}fonts/helvetiker_bold.typeface.json`;
 
 /** Darken a #rrggbb / #rgb color toward black by `amount` (0..1).
  *  Used as a sensible default for the extruded "side" face when the
