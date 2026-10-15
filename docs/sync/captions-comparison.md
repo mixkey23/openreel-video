@@ -19,7 +19,8 @@ Fuente: lectura directa de `upstream/main` (`c934046`) y `origin/main` (`5feeb61
 - **Dónde corre:** en un **servidor WhisperX/whisper-ctranslate2** propio (`/api/transcribe` o `OPENREEL_TRANSCRIBE_URL`, que `4f699e9` enruta al endpoint local de Framesmith). Sin descargas de modelos en el navegador.
 - **Tiempos:** **por palabra** (`words[]`), agrupados por `groupWordsToSubtitles(…, hold)` con **tiempo de lectura configurable** (`hold`, 0,5 s por defecto), traducción opcional a otro idioma, idioma auto/forzado, estilo de animación (`word-highlight` por defecto).
 - **Salida:** `addSubtitle` en `timeline.subtitles` (superposición animada), más lista/selección de subtítulos (`SubtitleListPanel`) y gestión de la pista «Captions».
-- **Cosas que no pude verificar:** si el modo «Timeline» respeta `inPoint/outPoint` del clip (el código que leí envía el blob completo del medio y desplaza por `clip.startTime`); el fork tiene el commit `2e96b38 «audio clip boundary»` que puede cubrirlo en la vía de inspector. Conviene una prueba con un clip recortado.
+- **Recorte del clip (verificado leyendo el código, no ejecutando):** solo la vía «Video File» del inspector respeta `inPoint`/`outPoint` (usa `transcribeClip` de `packages/core/src/text/transcription-service.ts`). Las demás —clip de audio, pistas de audio y modo «Timeline»— envían **el archivo de medio completo** y colocan los resultados sumando `clip.startTime`, sin mirar `inPoint`, `outPoint` ni velocidad. El commit `2e96b38` («audio clip boundary») **no** lo resuelve: solo exige ≥ 50 ms de solape entre clips y corrige el `endTime` cuando Whisper no devuelve palabras.
+  - Consecuencia: con un clip recortado, se transcribe también el audio que no está en la línea de tiempo y los captions salen desplazados. Con clips sin recortar (p. ej. el audio por beat que Framesmith coloca entero) no se nota.
 
 ## Comparación
 | Capacidad | Upstream | Tu fork |
