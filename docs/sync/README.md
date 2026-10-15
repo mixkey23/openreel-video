@@ -5,7 +5,7 @@ Notas de la **ruta corta** (backlog §5, Framesmith `docs/analysis/openreel-upst
 | ID | Qué | Estado |
 |---|---|---|
 | [OS-001](OS-001.md) | Clon completo, `upstream`, cifras de §0 | ✅ coinciden todas |
-| [OS-002](OS-002.md) | Tag y rama de retorno | ⚠️ solo local (403 al subir) |
+| [OS-002](OS-002.md) | Tag y rama de retorno | ✅ publicados por el propietario |
 | [OS-003](OS-003.md) | Línea base fork | ✅ 8 fallos previos documentados |
 | [OS-004](OS-004.md) | Línea base upstream | ✅ 100 % verde |
 | [OS-101](OS-101.md), [conflicts-raw.txt](conflicts-raw.txt) | 162 conflictos | ✅ |
