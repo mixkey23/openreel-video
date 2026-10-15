@@ -22,6 +22,6 @@ Rama `sync/upstream-merge` (publicada en el fork), creada desde `upstream/main`;
 - **Núcleo Framesmith completo:** bootstrap, bridge, persistencia en servidor, `originalUrl`, música (`setClipAudioPlan`, merge idempotente, multi-pista) y autosave con `save-now`/subida de medios externos. Contratos OS-201, 202, 203, 205 y música (31 tests): **todos en verde en esta rama.**
 - **ComfyUI TTS portado tal cual** (selector de proveedor + workflow, `generateWithComfyUI`), con prueba del contrato de red (`useElevenLabsApi.comfyui.test.ts`).
 - **Pendientes (24 commits del fork):** bloque de auto-captions/subtítulos (14), lista de subtítulos + clic en vista previa (6), pestaña Info (1), pestañas solo-icono (2), y `f878ad1` (parte de captions). Esperan la confirmación de la opción híbrida de captions (`captions-comparison.md`).
-- **Diferido y pendiente de decisión:** Ollama en «enhance text» (`1e76c82`): necesita `ollama` en `LlmProvider`, que afecta al chat de agentes de upstream.
+- **Decidido: no se porta** Ollama en «enhance text» (`1e76c82`). Se usa la vía de upstream: proveedor «OpenAI-compatible» con URL `http://<host>:11434/v1` y el modelo de Ollama, sin clave. Pendiente de comprobar por el propietario que Ollama responde desde el navegador (CORS).
 
 > Nota: los commits propios de `apps/web/dist/` (builds) también se reaplican; en el cierre se descartan y se reconstruye `dist` una sola vez (OS-601). `apps/web/dist` está en el `.gitignore` de upstream.
