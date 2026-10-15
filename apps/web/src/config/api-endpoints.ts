@@ -13,6 +13,18 @@ export const OPENREEL_CLOUD_URL = isDev
   : "https://api.openreel.video";
 
 /**
+ * Transcription endpoint — routed through Framesmith (local whisper-ctranslate2).
+ * Always same-origin: no CORS, no Mixed Content, no cloud dependency.
+ *
+ * Callers append "/transcribe", producing <origin>/api/transcribe, which maps to
+ * Framesmith's POST /api/transcribe router.
+ */
+export const OPENREEL_TRANSCRIBE_URL =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/api`
+    : "/api";
+
+/**
  * Third-party API base URLs.
  * These are used by the api-proxy service in dev mode (direct calls)
  * and by the Cloudflare Pages Function proxy in production.

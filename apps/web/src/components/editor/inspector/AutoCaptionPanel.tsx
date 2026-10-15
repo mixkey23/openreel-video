@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CAPTION_ANIMATION_STYLES,
   SUBTITLE_STYLE_PRESETS,
-  splitCaptionIntoSingleLineCues,
-  type TranscriptionSegment,
+  getAnimationStyleDisplayName,
+  type CaptionAnimationStyle,
+  type Subtitle,
 } from "@openreel/core";
 import {
   ToolcraftButton as Button,
   ToolcraftCard as Card,
+  ToolcraftNumberInputControl,
   ToolcraftSelectControl as Selector,
   ToolcraftText as Text,
 } from "@openreel/ui";
@@ -19,9 +22,21 @@ import {
   Sparkles,
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
+import { useSettingsStore } from "../../../stores/settings-store";
 import { useUIStore } from "../../../stores/ui-store";
+import { framesmithEpisodeId } from "../../../hooks/use-framesmith-init";
 import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
 import { audioBufferToWhisperSamples } from "../../../utils/whisper-audio";
+import { scaleOverlayStyle } from "../../../utils/caption-style";
+import {
+  collectCaptionJobs,
+  findClip,
+  listTracksWithMedia,
+  type CaptionJob,
+  type CaptionScope,
+} from "../../../utils/caption-sources";
+import { transcribeJobs, type EngineOutput } from "../../../services/caption-pipeline";
+import { transcribeWithServer } from "../../../services/caption-server";
 import {
   DEFAULT_WHISPER_MODEL,
   WHISPER_MODELS,
@@ -31,6 +46,7 @@ import {
 
 const CAPTION_STYLE_PRESETS = ["default", "modern", "bold", "cinematic", "minimal"] as const;
 const WHISPER_LANGUAGES = [
+  { code: "auto", name: "Auto-detect" },
   { code: "en", name: "English" },
   { code: "fr", name: "French" },
   { code: "de", name: "German" },
@@ -46,6 +62,10 @@ const WHISPER_LANGUAGES = [
   { code: "pl", name: "Polish" },
   { code: "vi", name: "Vietnamese" },
 ] as const;
+
+type Engine = "server" | "browser";
+type ScopeKind = "clip" | "range";
+type OutputMode = "overlay" | "text-clips";
 
 interface AutoCaptionPanelProps {
   clipId?: string;
@@ -63,38 +83,52 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
   clipId,
   maxWordsPerLine = 5,
 }) => {
-  const getClip = useProjectStore((state) => state.getClip);
+  const project = useProjectStore((state) => state.project);
   const getMediaItem = useProjectStore((state) => state.getMediaItem);
-  const addSubtitle = useProjectStore((state) => state.addSubtitle);
-  const workerRef = useRef<Worker | null>(null);
-  const [workerState, setWorkerState] = useState<WorkerState>("idle");
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState("en");
+  const whisperxModel = useSettingsStore((state) => state.whisperxModel);
+  const selectedItems = useUIStore((state) => state.selectedItems);
+
+  const resolvedClipId =
+    clipId ?? selectedItems.find((item) => item.type === "clip")?.id ?? "";
+  const clipEntry = resolvedClipId ? findClip(project, resolvedClipId) : undefined;
+  const clipMedia = clipEntry ? getMediaItem(clipEntry.clip.mediaId) : undefined;
+  const clipIsTranscribable = Boolean(
+    clipMedia && (clipMedia.type === "video" || clipMedia.type === "audio"),
+  );
+  const clipIsVideo = clipMedia?.type === "video";
+
+  // Inside Framesmith the local WhisperX server is the natural default; standalone, use the browser.
+  const [engine, setEngine] = useState<Engine>(framesmithEpisodeId ? "server" : "browser");
+  const [scopeKind, setScopeKind] = useState<ScopeKind>(clipIsTranscribable ? "clip" : "range");
+  const [clipSource, setClipSource] = useState<"own" | "audio-tracks">("own");
+  const [rangeSource, setRangeSource] = useState<"audio-tracks" | "video-tracks">("audio-tracks");
+  const [trackId, setTrackId] = useState("all");
+  const [rangeStart, setRangeStart] = useState(0);
+  const [rangeEnd, setRangeEnd] = useState(0);
+  const [language, setLanguage] = useState("auto");
+  const [translateTo, setTranslateTo] = useState("none");
+  const [holdSeconds, setHoldSeconds] = useState(0.5);
+  const [animation, setAnimation] = useState<CaptionAnimationStyle>("word-highlight");
   const [selectedStyle, setSelectedStyle] = useState<string>("default");
-  const [selectedModel, setSelectedModel] = useState<WhisperModelKey>(
-    DEFAULT_WHISPER_MODEL,
-  );
-  const [readyModels, setReadyModels] = useState<Set<WhisperModelKey>>(
-    () => new Set(),
-  );
+  const [outputMode, setOutputMode] = useState<OutputMode>("overlay");
+
+  const workerRef = useRef<Worker | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [workerState, setWorkerState] = useState<WorkerState>("idle");
+  const [selectedModel, setSelectedModel] = useState<WhisperModelKey>(DEFAULT_WHISPER_MODEL);
+  const [readyModels, setReadyModels] = useState<Set<WhisperModelKey>>(() => new Set());
   const [modelBackends, setModelBackends] = useState<
     Partial<Record<WhisperModelKey, "webgpu" | "wasm">>
   >({});
-  const [segments, setSegments] = useState<TranscriptionSegment[]>([]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedItems = useUIStore((state) => state.selectedItems);
-  const resolvedClipId =
-    clipId ?? selectedItems.find((item) => item.type === "clip")?.id ?? "";
-  const clip = getClip(resolvedClipId);
-  const mediaItem = clip ? getMediaItem(clip.mediaId) : undefined;
-  const canTranscribe = Boolean(
-    clip && mediaItem && (mediaItem.type === "video" || mediaItem.type === "audio"),
-  );
-
+  // The in-browser engine is only started when chosen (it downloads its model from a remote host).
   useEffect(() => {
+    if (engine !== "browser") return undefined;
     const worker = new Worker(
       new URL("../../../workers/whisper-worker.ts", import.meta.url),
       { type: "module" },
@@ -104,7 +138,37 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
       worker.terminate();
       workerRef.current = null;
     };
-  }, []);
+  }, [engine]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const audioTracks = useMemo(() => listTracksWithMedia(project, "audio"), [project]);
+  const videoTracks = useMemo(() => listTracksWithMedia(project, "video"), [project]);
+  const trackOptions = useMemo(() => {
+    const wantsVideo = scopeKind === "range" && rangeSource === "video-tracks";
+    const tracks = wantsVideo ? videoTracks : audioTracks;
+    return [
+      { label: wantsVideo ? "All video tracks" : "All audio tracks", value: "all" },
+      ...tracks.map((track) => ({ label: track.name, value: track.id })),
+    ];
+  }, [audioTracks, rangeSource, scopeKind, videoTracks]);
+
+  useEffect(() => {
+    if (!trackOptions.some((option) => option.value === trackId)) setTrackId("all");
+  }, [trackId, trackOptions]);
+
+  const scope: CaptionScope | null = useMemo(() => {
+    if (scopeKind === "clip") {
+      if (!clipEntry || !clipIsTranscribable) return null;
+      return {
+        kind: "clip",
+        clipId: clipEntry.clip.id,
+        source: clipIsVideo ? clipSource : "own",
+        trackId,
+      };
+    }
+    return { kind: "range", start: rangeStart, end: rangeEnd, source: rangeSource, trackId };
+  }, [clipEntry, clipIsTranscribable, clipIsVideo, clipSource, rangeEnd, rangeSource, rangeStart, scopeKind, trackId]);
 
   const runWorker = useCallback(
     (
@@ -114,6 +178,7 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
       const worker = workerRef.current;
       if (!worker) return Promise.reject(new Error("Caption worker is not ready."));
       const requestId = crypto.randomUUID();
+      const workerLanguage = language === "auto" ? undefined : language;
       return new Promise((resolve, reject) => {
         const handleMessage = (event: MessageEvent<Record<string, unknown>>) => {
           if (event.data.requestId !== requestId) return;
@@ -126,73 +191,43 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
             setProgressMessage(`Downloading ${file || "caption model"}…`);
           } else if (messageType === "transcription-progress") {
             setWorkerState("ready");
-            setProgress(Number(event.data.progress ?? 0));
-            setProgressMessage("Transcribing selected clip locally…");
-          } else if (messageType === "ready") {
+          } else if (messageType === "ready" || messageType === "result") {
             worker.removeEventListener("message", handleMessage);
             setWorkerState("ready");
             setReadyModels((current) => new Set(current).add(selectedModel));
             const backend = event.data.backend;
             if (backend === "webgpu" || backend === "wasm") {
-              setModelBackends((current) => ({
-                ...current,
-                [selectedModel]: backend,
-              }));
+              setModelBackends((current) => ({ ...current, [selectedModel]: backend }));
             }
-            setProgress(1);
-            setProgressMessage("Offline caption model is ready");
-            resolve({});
-          } else if (messageType === "result") {
-            worker.removeEventListener("message", handleMessage);
-            setWorkerState("ready");
-            setReadyModels((current) => new Set(current).add(selectedModel));
-            const backend = event.data.backend;
-            if (backend === "webgpu" || backend === "wasm") {
-              setModelBackends((current) => ({
-                ...current,
-                [selectedModel]: backend,
-              }));
+            if (messageType === "ready") {
+              setProgress(1);
+              setProgressMessage("Offline caption model is ready");
+              resolve({});
+            } else {
+              resolve({
+                text: String(event.data.text ?? ""),
+                chunks: (event.data.chunks ?? []) as WorkerChunk[],
+              });
             }
-            setProgress(1);
-            resolve({
-              text: String(event.data.text ?? ""),
-              chunks: (event.data.chunks ?? []) as WorkerChunk[],
-            });
           } else if (messageType === "error") {
             worker.removeEventListener("message", handleMessage);
             reject(new Error(String(event.data.message ?? "Local transcription failed.")));
           }
         };
         worker.addEventListener("message", handleMessage);
-        if (audio) {
-          worker.postMessage(
-            {
-              requestId,
-              type,
-              audio,
-              language: selectedLanguage,
-              model: selectedModel,
-            },
-            [audio.buffer],
-          );
-        } else {
-          worker.postMessage({
-            requestId,
-            type,
-            language: selectedLanguage,
-            model: selectedModel,
-          });
-        }
+        worker.postMessage(
+          { requestId, type, audio, language: workerLanguage, model: selectedModel },
+          audio ? [audio.buffer] : [],
+        );
       });
     },
-    [selectedLanguage, selectedModel],
+    [language, selectedModel],
   );
 
   const handleModelChange = useCallback(
     (value: string) => {
       if (!isWhisperModelKey(value)) return;
       setSelectedModel(value);
-      setSegments([]);
       setError(null);
       setProgress(readyModels.has(value) ? 1 : 0);
       setProgressMessage(readyModels.has(value) ? "Offline caption model is ready" : "");
@@ -214,125 +249,144 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
     }
   }, [runWorker]);
 
-  const handleTranscribe = useCallback(async () => {
-    if (!clip || !mediaItem) return;
+  const handleGenerate = useCallback(async () => {
+    if (!scope) return;
+    const state = useProjectStore.getState();
+    const jobs = collectCaptionJobs(state.project, scope);
     setError(null);
-    setSegments([]);
+    setResultMessage(null);
+    if (jobs.length === 0) {
+      setError(
+        scope.kind === "range"
+          ? `No ${scope.source === "video-tracks" ? "video" : "audio"} clips found in that range.`
+          : scope.source === "audio-tracks"
+            ? "No audio clips found under the selected clip. Switch the audio source to the clip itself."
+            : "The selected clip has no usable audio.",
+      );
+      return;
+    }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsTranscribing(true);
     setProgress(0);
-    setProgressMessage("Extracting selected clip audio…");
+    setProgressMessage("Preparing audio…");
 
     let audioContext: AudioContext | null = null;
-    try {
-      const sourceBlob =
-        mediaItem.blob ??
-        (mediaItem.fileHandle ? await mediaItem.fileHandle.getFile() : null);
-      if (!sourceBlob) {
-        throw new Error("Reconnect the source media before creating captions.");
-      }
-      audioContext = new AudioContext();
-      const audioBuffer = await loadAudioBuffer(audioContext, sourceBlob, {
-        audioTrackIndex: clip.audioTrackIndex,
-        onProgress: (next) => {
-          setProgress(next.progress * 0.18);
-          setProgressMessage(next.message);
-        },
-      });
-      if (!audioBuffer) throw new Error("The selected clip audio could not be decoded.");
+    const decoded = new Map<string, AudioBuffer>();
 
-      const sourceStart = Math.max(0, clip.inPoint ?? 0);
-      const sourceEnd = Math.min(
-        audioBuffer.duration,
-        clip.outPoint > sourceStart
-          ? clip.outPoint
-          : sourceStart + clip.duration * Math.max(clip.speed ?? 1, 0.01),
-      );
-      const samples = audioBufferToWhisperSamples(audioBuffer, sourceStart, sourceEnd);
-      setProgress(0.2);
-      setProgressMessage(
-        workerState === "ready"
-          ? `Transcribing with ${WHISPER_MODELS[selectedModel].shortLabel}…`
-          : `Downloading ${WHISPER_MODELS[selectedModel].shortLabel}, then transcribing…`,
-      );
-      const result = await runWorker("transcribe", samples);
-      const sourceDuration = Math.max(0.1, sourceEnd - sourceStart);
-      const playbackSpeed = Math.max(clip.speed ?? 1, 0.01);
-      const clipEndTime = clip.startTime + clip.duration;
-      const nextSegments: TranscriptionSegment[] = (result.chunks ?? [])
-        .map((chunk) => {
-          const start = Math.max(0, chunk.timestamp?.[0] ?? 0);
-          const end = Math.min(
-            sourceDuration,
-            chunk.timestamp?.[1] ?? Math.min(sourceDuration, start + 3),
-          );
-          return {
-            text: chunk.text.trim(),
-            startTime: Math.min(clipEndTime, clip.startTime + start / playbackSpeed),
-            endTime: Math.min(
-              clipEndTime,
-              clip.startTime + Math.max(start + 0.1, end) / playbackSpeed,
-            ),
-            confidence: 1,
-          };
-        })
-        .filter(
-          (segment) =>
-            segment.text.length > 0 && segment.endTime > segment.startTime,
-        );
-      if (nextSegments.length === 0 && result.text?.trim()) {
-        nextSegments.push({
-          text: result.text.trim(),
-          startTime: clip.startTime,
-          endTime: clipEndTime,
-          confidence: 1,
+    const loadSamples = async (job: CaptionJob): Promise<Float32Array> => {
+      const key = `${job.mediaId}:${job.audioTrackIndex ?? 0}`;
+      let buffer = decoded.get(key);
+      if (!buffer) {
+        const media = state.getMediaItem(job.mediaId);
+        const blob = media?.blob ?? (media?.fileHandle ? await media.fileHandle.getFile() : null);
+        if (!blob) throw new Error(`Reconnect the source media (${job.mediaName}) before creating captions.`);
+        audioContext ??= new AudioContext();
+        const loaded = await loadAudioBuffer(audioContext, blob, {
+          audioTrackIndex: job.audioTrackIndex,
+          onProgress: (next) => setProgressMessage(next.message),
+        });
+        if (!loaded) throw new Error(`The audio of ${job.mediaName} could not be decoded.`);
+        buffer = loaded;
+        decoded.set(key, loaded);
+      }
+      return audioBufferToWhisperSamples(buffer, job.sourceStart, Math.min(buffer.duration, job.sourceEnd));
+    };
+
+    const transcribe = async (samples: Float32Array): Promise<EngineOutput> => {
+      if (engine === "server") {
+        return transcribeWithServer(samples, {
+          model: whisperxModel,
+          language,
+          targetLanguage: translateTo === "none" ? null : translateTo,
+          signal: controller.signal,
         });
       }
-      if (nextSegments.length === 0) {
-        throw new Error("No speech was detected in the selected clip.");
+      const result = await runWorker("transcribe", samples);
+      const segments = (result.chunks ?? [])
+        .map((chunk) => {
+          const start = Math.max(0, chunk.timestamp?.[0] ?? 0);
+          const end = chunk.timestamp?.[1] ?? start + 3;
+          return { text: chunk.text.trim(), start, end: Math.max(start + 0.1, end) };
+        })
+        .filter((segment) => segment.text.length > 0);
+      return { text: result.text, segments };
+    };
+
+    try {
+      const { blocks, skipped } = await transcribeJobs(
+        jobs,
+        {
+          loadSamples,
+          transcribe,
+          signal: controller.signal,
+          onProgress: ({ index, total, job }) => {
+            setProgress(index / total);
+            setProgressMessage(
+              `Transcribing ${index + 1} of ${total} (${job.mediaName}) ${engine === "server" ? "on the local server" : "in the browser"}…`,
+            );
+          },
+        },
+        { holdSeconds, maxWordsPerBlock: maxWordsPerLine },
+      );
+
+      if (blocks.length === 0) {
+        throw new Error(skipped[0]?.reason ?? "No speech was detected.");
       }
-      setSegments(nextSegments);
-      setProgressMessage("Captions are ready to add");
+
+      const presetStyle = SUBTITLE_STYLE_PRESETS[selectedStyle] ?? SUBTITLE_STYLE_PRESETS.default;
+      if (outputMode === "overlay") {
+        const style = scaleOverlayStyle(presetStyle, state.project.settings.height);
+        const added: Subtitle[] = blocks.map((block) => ({
+          id: `whisper-${crypto.randomUUID()}`,
+          text: block.text,
+          startTime: block.startTime,
+          endTime: block.endTime,
+          words: block.words,
+          animationStyle: animation,
+          style,
+        }));
+        await state.executeAction({
+          type: "subtitle/setAll",
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          params: { subtitles: [...state.project.timeline.subtitles, ...added] },
+        });
+      } else {
+        for (const block of blocks) {
+          await state.addSubtitle(
+            {
+              id: `whisper-${crypto.randomUUID()}`,
+              text: block.text,
+              startTime: block.startTime,
+              endTime: block.endTime,
+              style: presetStyle,
+            },
+            {
+              captionSource: engine === "server" ? "whisperx" : "whisper",
+              captionSourceClipId: block.sourceClipId,
+              captionMaxWordsPerLine: maxWordsPerLine,
+              captionWhisperModel: engine === "server" ? whisperxModel : selectedModel,
+            },
+          );
+        }
+      }
+      setProgress(1);
+      setResultMessage(
+        `${blocks.length} caption${blocks.length === 1 ? "" : "s"} added${
+          skipped.length ? ` · ${skipped.length} clip${skipped.length === 1 ? "" : "s"} skipped (${skipped[0].reason.toLowerCase()})` : ""
+        }`,
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Local transcription failed.");
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      setError(reason instanceof Error ? reason.message : "Transcription failed.");
     } finally {
-      await audioContext?.close().catch(() => undefined);
+      await (audioContext as AudioContext | null)?.close().catch(() => undefined);
       setIsTranscribing(false);
     }
-  }, [clip, mediaItem, runWorker, selectedModel, workerState]);
-
-  const handleAddToTimeline = useCallback(async () => {
-    if (!clip || segments.length === 0) return;
-    const style = SUBTITLE_STYLE_PRESETS[selectedStyle] ?? SUBTITLE_STYLE_PRESETS.default;
-    let addedCount = 0;
-    for (const segment of segments) {
-      const cues = splitCaptionIntoSingleLineCues(
-        segment.text,
-        segment.startTime,
-        segment.endTime,
-        maxWordsPerLine,
-      );
-      for (const cue of cues) {
-        await addSubtitle(
-          {
-            id: `whisper-${crypto.randomUUID()}`,
-            text: cue.text,
-            startTime: cue.startTime,
-            endTime: cue.endTime,
-            style,
-          },
-          {
-            captionSource: "whisper",
-            captionSourceClipId: clip.id,
-            captionMaxWordsPerLine: maxWordsPerLine,
-            captionWhisperModel: selectedModel,
-          },
-        );
-        addedCount += 1;
-      }
-    }
-    setSegments([]);
-    setProgressMessage(`${addedCount} single-line caption clips added`);
-  }, [addSubtitle, clip, maxWordsPerLine, segments, selectedModel, selectedStyle]);
+  }, [animation, engine, holdSeconds, language, maxWordsPerLine, outputMode, runWorker, scope, selectedModel, selectedStyle, translateTo, whisperxModel]);
 
   const modelStatus = useMemo(() => {
     const model = WHISPER_MODELS[selectedModel];
@@ -344,91 +398,255 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
     return `${model.downloadSize} · ${model.description}`;
   }, [modelBackends, progressMessage, selectedModel, workerState]);
 
+  const sectionLabel = (text: string) => (
+    <Text type="supporting" color="secondary" className="text-[10px]">{text}</Text>
+  );
+
   return (
     <div className="w-full min-w-0 space-y-3">
-      <Card variant="muted" padding={3} className="space-y-2 border border-primary/30 bg-primary/5">
+      <Card variant="muted" padding={3} className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <Text type="supporting" color="secondary" className="text-[10px]">
-            Model quality
-          </Text>
+          {sectionLabel("Engine")}
           <Selector
-            label="Local caption model"
+            label="Caption engine"
             isLabelHidden
             size="sm"
-            width={176}
-            value={selectedModel}
-            onChange={handleModelChange}
-            isDisabled={workerState === "loading" || isTranscribing}
-            options={(
-              Object.entries(WHISPER_MODELS) as Array<
-                [WhisperModelKey, (typeof WHISPER_MODELS)[WhisperModelKey]]
-              >
-            ).map(([value, model]) => ({
-              label: model.label,
-              value,
-            }))}
+            width={190}
+            value={engine}
+            onChange={(value) => setEngine(value as Engine)}
+            isDisabled={isTranscribing}
+            options={[
+              { label: "Local server (WhisperX)", value: "server" },
+              { label: "In this browser (offline)", value: "browser" },
+            ]}
           />
         </div>
-        <div className="flex items-start gap-2">
-          {workerState === "ready" ? (
-            <Check size={15} className="mt-0.5 text-primary" aria-hidden />
-          ) : (
-            <Download size={15} className="mt-0.5 text-primary" aria-hidden />
-          )}
-          <div className="min-w-0 flex-1">
-            <Text type="supporting" weight="bold" className="block text-[11px] text-fg">
-              {WHISPER_MODELS[selectedModel].shortLabel}
-            </Text>
-            <Text type="supporting" color="secondary" className="block text-[9px]">
-              {modelStatus}
-            </Text>
-          </div>
+        <div className="flex items-center justify-between gap-2">
+          {sectionLabel("Captions for")}
+          <Selector
+            label="Caption scope"
+            isLabelHidden
+            size="sm"
+            width={190}
+            value={scopeKind}
+            onChange={(value) => setScopeKind(value as ScopeKind)}
+            isDisabled={isTranscribing}
+            options={[
+              { label: "Selected clip", value: "clip", disabled: !clipIsTranscribable },
+              { label: "Timeline range", value: "range" },
+            ]}
+          />
         </div>
-        {workerState === "loading" && (
-          <div className="h-1.5 overflow-hidden rounded-full bg-bg-2">
-            <div
-              className="h-full bg-primary transition-[width]"
-              style={{ width: `${Math.max(3, Math.min(100, progress * 100))}%` }}
+
+        {scopeKind === "clip" && clipIsVideo && (
+          <div className="flex items-center justify-between gap-2">
+            {sectionLabel("Audio from")}
+            <Selector
+              label="Audio source"
+              isLabelHidden
+              size="sm"
+              width={190}
+              value={clipSource}
+              onChange={(value) => setClipSource(value as "own" | "audio-tracks")}
+              isDisabled={isTranscribing}
+              options={[
+                { label: "The video's own audio", value: "own" },
+                { label: "Audio tracks under the clip", value: "audio-tracks" },
+              ]}
             />
           </div>
         )}
-        {workerState === "idle" && (
-          <Button
-            label={`Download ${WHISPER_MODELS[selectedModel].shortLabel}`}
-            icon={<Download size={13} aria-hidden />}
-            variant="secondary"
-            size="sm"
-            onClick={handlePrepareModel}
-            className="w-full justify-center"
-          />
+
+        {scopeKind === "range" && (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              {sectionLabel("Take audio from")}
+              <Selector
+                label="Range audio source"
+                isLabelHidden
+                size="sm"
+                width={190}
+                value={rangeSource}
+                onChange={(value) => setRangeSource(value as "audio-tracks" | "video-tracks")}
+                isDisabled={isTranscribing}
+                options={[
+                  { label: "Audio clips", value: "audio-tracks" },
+                  { label: "Video clips (extract audio)", value: "video-tracks" },
+                ]}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <ToolcraftNumberInputControl
+                label="From (s)"
+                size="sm"
+                width="100%"
+                min={0}
+                value={rangeStart}
+                onChange={(value) => setRangeStart(Math.max(0, Number(value) || 0))}
+              />
+              <ToolcraftNumberInputControl
+                label="To (s, 0 = end)"
+                size="sm"
+                width="100%"
+                min={0}
+                value={rangeEnd}
+                onChange={(value) => setRangeEnd(Math.max(0, Number(value) || 0))}
+              />
+            </div>
+          </>
         )}
-        <Text type="supporting" color="secondary" className="block text-[9px] leading-relaxed">
-          Stored in this browser after the first download. Media never leaves your device.
-        </Text>
+
+        {((scopeKind === "clip" && clipIsVideo && clipSource === "audio-tracks") || scopeKind === "range") && (
+          <div className="flex items-center justify-between gap-2">
+            {sectionLabel("Track")}
+            <Selector
+              label="Track"
+              isLabelHidden
+              size="sm"
+              width={190}
+              value={trackId}
+              onChange={setTrackId}
+              isDisabled={isTranscribing}
+              options={trackOptions}
+            />
+          </div>
+        )}
       </Card>
+
+      {engine === "browser" && (
+        <Card variant="muted" padding={3} className="space-y-2 border border-primary/30 bg-primary/5">
+          <div className="flex items-center justify-between gap-2">
+            {sectionLabel("Model quality")}
+            <Selector
+              label="Local caption model"
+              isLabelHidden
+              size="sm"
+              width={176}
+              value={selectedModel}
+              onChange={handleModelChange}
+              isDisabled={workerState === "loading" || isTranscribing}
+              options={(
+                Object.entries(WHISPER_MODELS) as Array<
+                  [WhisperModelKey, (typeof WHISPER_MODELS)[WhisperModelKey]]
+                >
+              ).map(([value, model]) => ({ label: model.label, value }))}
+            />
+          </div>
+          <div className="flex items-start gap-2">
+            {workerState === "ready" ? (
+              <Check size={15} className="mt-0.5 text-primary" aria-hidden />
+            ) : (
+              <Download size={15} className="mt-0.5 text-primary" aria-hidden />
+            )}
+            <div className="min-w-0 flex-1">
+              <Text type="supporting" weight="bold" className="block text-[11px] text-fg">
+                {WHISPER_MODELS[selectedModel].shortLabel}
+              </Text>
+              <Text type="supporting" color="secondary" className="block text-[9px]">
+                {modelStatus}
+              </Text>
+            </div>
+          </div>
+          {workerState === "loading" && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-bg-2">
+              <div
+                className="h-full bg-primary transition-[width]"
+                style={{ width: `${Math.max(3, Math.min(100, progress * 100))}%` }}
+              />
+            </div>
+          )}
+          {workerState === "idle" && (
+            <Button
+              label={`Download ${WHISPER_MODELS[selectedModel].shortLabel}`}
+              icon={<Download size={13} aria-hidden />}
+              variant="secondary"
+              size="sm"
+              onClick={handlePrepareModel}
+              className="w-full justify-center"
+            />
+          )}
+          <Text type="supporting" color="secondary" className="block text-[9px] leading-relaxed">
+            The model is downloaded once from media.openreel.video and cached in this browser. Media never leaves your device.
+          </Text>
+        </Card>
+      )}
+
+      {engine === "server" && (
+        <Text type="supporting" color="secondary" className="block text-[9px] leading-relaxed">
+          Audio is sent to your local WhisperX server ({whisperxModel}) with word-level timing.
+        </Text>
+      )}
 
       <Card variant="muted" padding={3} className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <Languages size={14} className="text-fg-2" aria-hidden />
-            <Text type="supporting" color="secondary" className="text-[10px]">Language</Text>
+            {sectionLabel("Language")}
           </div>
           <Selector
             label="Caption language"
             isLabelHidden
             size="sm"
             width={132}
-            value={selectedLanguage}
-            onChange={setSelectedLanguage}
+            value={language}
+            onChange={setLanguage}
             isDisabled={isTranscribing}
-            options={WHISPER_LANGUAGES.map((language) => ({
-              label: language.name,
-              value: language.code,
+            options={WHISPER_LANGUAGES.map((item) => ({ label: item.name, value: item.code }))}
+          />
+        </div>
+        {engine === "server" && (
+          <div className="flex items-center justify-between gap-2">
+            {sectionLabel("Translate to")}
+            <Selector
+              label="Translate captions to"
+              isLabelHidden
+              size="sm"
+              width={132}
+              value={translateTo}
+              onChange={setTranslateTo}
+              isDisabled={isTranscribing}
+              options={[
+                { label: "No translation", value: "none" },
+                ...WHISPER_LANGUAGES.filter((item) => item.code !== "auto").map((item) => ({
+                  label: item.name,
+                  value: item.code,
+                })),
+              ]}
+            />
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          {sectionLabel("Reading time after speech (s)")}
+          <ToolcraftNumberInputControl
+            label="Reading hold"
+            isLabelHidden
+            size="sm"
+            width={80}
+            min={0}
+            max={3}
+            step={0.1}
+            value={holdSeconds}
+            onChange={(value) => setHoldSeconds(Math.max(0, Math.min(3, Number(value) || 0)))}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          {sectionLabel("Animation")}
+          <Selector
+            label="Caption animation"
+            isLabelHidden
+            size="sm"
+            width={132}
+            value={animation}
+            onChange={(value) => setAnimation(value as CaptionAnimationStyle)}
+            isDisabled={isTranscribing || outputMode === "text-clips"}
+            options={CAPTION_ANIMATION_STYLES.map((style) => ({
+              label: getAnimationStyleDisplayName(style),
+              value: style,
             }))}
           />
         </div>
         <div className="flex items-center justify-between gap-2">
-          <Text type="supporting" color="secondary" className="text-[10px]">Caption style</Text>
+          {sectionLabel("Caption style")}
           <Selector
             label="Caption style"
             isLabelHidden
@@ -441,6 +659,22 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
               label: preset[0].toUpperCase() + preset.slice(1),
               value: preset,
             }))}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          {sectionLabel("Add as")}
+          <Selector
+            label="Caption output"
+            isLabelHidden
+            size="sm"
+            width={190}
+            value={outputMode}
+            onChange={(value) => setOutputMode(value as OutputMode)}
+            isDisabled={isTranscribing}
+            options={[
+              { label: "Animated subtitles", value: "overlay" },
+              { label: "Editable text clips", value: "text-clips" },
+            ]}
           />
         </div>
       </Card>
@@ -461,44 +695,34 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
         </Card>
       )}
 
-      {segments.length > 0 && (
-        <div className="space-y-2">
-          <div className="max-h-36 space-y-1 overflow-y-auto">
-            {segments.map((segment, index) => (
-              <Card key={`${segment.startTime}-${index}`} variant="muted" padding={2} className="text-[10px]">
-                <span className="font-mono text-fg-muted">{segment.startTime.toFixed(1)}s</span>
-                <span className="ml-2 text-fg">{segment.text}</span>
-              </Card>
-            ))}
-          </div>
-          <Button
-            label={`Add ${segments.length} as Editable Text`}
-            variant="primary"
-            size="sm"
-            onClick={handleAddToTimeline}
-            className="w-full justify-center"
-          />
-        </div>
+      {resultMessage && !isTranscribing && (
+        <Card variant="muted" padding={2} className="border border-green-500/30 bg-green-500/10">
+          <Text type="supporting" className="text-[10px] text-green-400">{resultMessage}</Text>
+        </Card>
       )}
 
-      <Button
-        label={isTranscribing ? "Transcribing Locally…" : "Transcribe Selected Clip"}
-        icon={
-          isTranscribing ? (
-            <Loader2 size={14} className="animate-spin" aria-hidden />
-          ) : (
-            <Sparkles size={14} aria-hidden />
-          )
-        }
-        variant="primary"
-        size="md"
-        onClick={handleTranscribe}
-        isDisabled={!canTranscribe || isTranscribing}
-        className="w-full justify-center"
-      />
-      {!canTranscribe && (
+      {isTranscribing ? (
+        <Button
+          label="Cancel"
+          variant="secondary"
+          size="md"
+          onClick={() => abortRef.current?.abort()}
+          className="w-full justify-center"
+        />
+      ) : (
+        <Button
+          label="Generate Captions"
+          icon={<Sparkles size={14} aria-hidden />}
+          variant="primary"
+          size="md"
+          onClick={handleGenerate}
+          isDisabled={!scope}
+          className="w-full justify-center"
+        />
+      )}
+      {!scope && (
         <Text type="supporting" color="secondary" className="block text-center text-[9px]">
-          Select a connected video or audio clip first.
+          Select a connected video or audio clip, or switch to a timeline range.
         </Text>
       )}
     </div>
