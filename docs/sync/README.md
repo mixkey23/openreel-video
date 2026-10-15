@@ -1,6 +1,6 @@
 # docs/sync — Sincronización con `Augani/openreel-video`
 
-Notas de la **ruta corta** (backlog §5, Framesmith `docs/analysis/openreel-upstream-merge-backlog.md`). Sesión del 2026-10-15. **Detenida en la puerta G1.** Ningún cambio en `main`, en el pin de Framesmith ni force-push.
+Notas de la **ruta corta** (backlog §5, Framesmith `docs/analysis/openreel-upstream-merge-backlog.md`). Sesión del 2026-10-15. **Reaplicación de la estrategia E completa; verificación de G2 casi cerrada (falta la prueba humana).** Ningún cambio en `main`, en el pin de Framesmith ni force-push.
 
 | ID | Qué | Estado |
 |---|---|---|
@@ -15,6 +15,14 @@ Notas de la **ruta corta** (backlog §5, Framesmith `docs/analysis/openreel-upst
 | [OS-304](OS-304.md) | Selectiva | ✅ no viable por commit |
 | [OS-305](OS-305.md) | Ensayo estrategia E (extra) | ✅ 40/49 limpios |
 | [**OS-306**](OS-306.md) | **Matriz de decisión · G1** | ✅ |
-| [CONFLICTS.md](CONFLICTS.md) | Registro de resoluciones | vacío (sin resoluciones) |
+| [CONFLICTS.md](CONFLICTS.md) | Registro de resoluciones de `sync/upstream-merge` | ✅ 49/49 commits propios resueltos |
+| [captions-comparison.md](captions-comparison.md) | Captions: upstream vs fork → diseño híbrido | ✅ implementado |
+| [OS-208](OS-208.md) | Puntos de integración con Framesmith | ✅ verificados |
+| [OS-503](OS-503.md) | Ducking de música sobre el motor integrado | ✅ idéntico; fundidos nuevos |
+| [OS-506](OS-506.md) | Workspace reducido y peso | ✅ aplicado (`dist` 59 MB: decisión abierta) |
+| [OS-507](OS-507.md) | Red añadida por upstream | ✅ auditada |
+| [OS-601](OS-601.md) | `dist` reconstruido + prueba de humo en Chromium | ✅ |
+| [auditoria-perdidas](auditoria-perdidas.md) | ¿Se pierde algo del fork? | ✅ 0 ausencias sin explicar |
+| [smoke-openreel.cjs](smoke-openreel.cjs) | Script de la prueba de humo | — |
 
 Pruebas añadidas (apps/web/src): `stores/framesmith-store-contract.test.ts`, `hooks/framesmith-{init,bridge,autosave}-contract.test.ts`.

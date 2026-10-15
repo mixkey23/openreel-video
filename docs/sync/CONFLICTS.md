@@ -29,4 +29,8 @@ Rama `sync/upstream-merge` (publicada en el fork), creada desde `upstream/main`;
 - **Decidido: no se porta** Ollama en «enhance text» (se usa «OpenAI-compatible» con `http://<host>:11434/v1`; pendiente de comprobar CORS) ni el modo micrófono (upstream lo eliminó).
 - **Adaptaciones que cambian comportamiento respecto al fork** (revisar en la prueba humana): sección Clip Info plegada por defecto y en forma de sección (no pestaña); máximo de palabras por bloque lo fija el control de upstream (5) en lugar de 10; Preset/Apply to All del panel Subtitles actúan con una sola acción; sin Piper.
 
-> Pendiente para cerrar G2: reconstruir `apps/web/dist` una sola vez (los commits propios de builds se reaplicaron y `apps/web/dist` está en el `.gitignore` de upstream), repetir la auditoría de pérdidas sobre esta rama, OS-503 (ducking), OS-506/507 (peso y red) y la prueba humana de S6 con `episode_035`.
+## Verificación de G2 (hecha en esta sesión)
+- `dist` reconstruido una vez (OS-601) y probado en Chromium bajo `/openreel/` · auditoría de pérdidas sin ausencias sin explicar · ducking idéntico (OS-503) · workspace reducido (OS-506) · red auditada (OS-507) · integración con Framesmith verificada (OS-208).
+- Rama: **`sync/upstream-merge`**, suite de `apps/web` 208 ficheros / 1 162 tests, `tsc` 0 errores.
+- **Pendiente:** OS-406, la prueba humana de S6 con `episode_035` (carga, restore, mover escena, autosave, 3 modos de música, ducking de oído, captions).
+- **Decisiones abiertas:** desactivar `api.openreel.video` (compartir / plantillas en la nube); aligerar el `dist` de 59 MB quitando el motor de Whisper del navegador y multicam; comprobar CORS de Ollama.
