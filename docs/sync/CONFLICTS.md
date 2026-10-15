@@ -13,15 +13,15 @@ Rama `sync/upstream-merge` (publicada en el fork), creada desde `upstream/main`;
 | `1398e0c` | `apps/web/dist/index.html` | bundle generado: se conserva el actual; el dist se reconstruye una sola vez al final (OS-601) | HEAD |
 | `813f9ca` | `stores/project-store.test.ts` | el describe de setClipAudioPlan del fork se anexa como bloque propio al final (upstream cambió el final del fichero); project-store.ts aplicó sin conflicto | upstream+reaplicado |
 | `f878ad1 (parcial)` | `hooks/use-framesmith-autosave.ts` | se porta solo la parte de persistencia (save-now, subida de medios externos, mensajes al padre); InspectorPanel/AutoCaptionPanel/AiTab de ese commit pasan a la fase híbrida de captions | fork |
+| `captions (4f699e9, 0401c75, 3d5b4b1, 6d8bc23, d2dec11, 6f76ba3, 364bb24, 187d395, 8de049f, c316c5a, 2e96b38, 9856e2f, cc26545, 1fea597, f878ad1 parte captions)` | `inspector/AutoCaptionPanel + utils/caption-* + services/caption-*` | sustituidos por el panel híbrido (alcance del fork, motor local/navegador, salida animada o clips de texto, recorte corregido) | nuevo código |
 
 **Descartado a propósito:** `97b50a8` (inspector en pestañas #71, variante del fork): upstream ya trae su versión (`3ee0205`).
 
-## Estado (al cierre de esta sesión)
+## Estado
 
-- **25 commits** sobre `upstream/main`; `tsc` sin errores.
-- **Núcleo Framesmith completo:** bootstrap, bridge, persistencia en servidor, `originalUrl`, música (`setClipAudioPlan`, merge idempotente, multi-pista) y autosave con `save-now`/subida de medios externos. Contratos OS-201, 202, 203, 205 y música (31 tests): **todos en verde en esta rama.**
-- **ComfyUI TTS portado tal cual** (selector de proveedor + workflow, `generateWithComfyUI`), con prueba del contrato de red (`useElevenLabsApi.comfyui.test.ts`).
-- **Pendientes (24 commits del fork):** bloque de auto-captions/subtítulos (14), lista de subtítulos + clic en vista previa (6), pestaña Info (1), pestañas solo-icono (2), y `f878ad1` (parte de captions). Esperan la confirmación de la opción híbrida de captions (`captions-comparison.md`).
-- **Decidido: no se porta** Ollama en «enhance text» (`1e76c82`). Se usa la vía de upstream: proveedor «OpenAI-compatible» con URL `http://<host>:11434/v1` y el modelo de Ollama, sin clave. Pendiente de comprobar por el propietario que Ollama responde desde el navegador (CORS).
+- **26 commits** sobre `upstream/main`; `tsc` sin errores; suite completa de `apps/web`: **205 ficheros · 1 142 tests · 0 fallos** (línea base de upstream: 1 042).
+- **Hecho:** núcleo Framesmith (bootstrap, bridge, persistencia, `originalUrl`, música, autosave con `save-now`), ComfyUI TTS tal cual, pestaña «Local AI» y **captions híbridos** (alcance clip/rango/pistas de audio y vídeo, motor WhisperX local o navegador, salida animada o clips de texto, recorte corregido). Contratos OS-201, 202, 203, 205 y música en verde.
+- **Decidido: no se porta** Ollama en «enhance text» (se usa «OpenAI-compatible» con `http://<host>:11434/v1`; pendiente de comprobar CORS) ni el modo micrófono (upstream lo eliminó).
+- **Pendiente (9 commits):** lista de subtítulos con estilo global + clic en la vista previa (`a9386c9`, `55c2329`, `7ea5adb`, `8ecf9ee`, `3632771`, `9663a1c`), pestaña Info (`ce9e959`), pestañas solo-icono (`27eaa70`, `70d70d8`).
 
 > Nota: los commits propios de `apps/web/dist/` (builds) también se reaplican; en el cierre se descartan y se reconstruye `dist` una sola vez (OS-601). `apps/web/dist` está en el `.gitignore` de upstream.

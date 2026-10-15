@@ -46,3 +46,6 @@ La parte de tu fork que realmente aporta es pequeña y portable: **la lógica de
 2. Reponer sobre ese panel un selector de **alcance** (clip · pista de audio · pista de vídeo · rango) y de **motor** (WhisperX local · Whisper en navegador), reutilizando el código de selección del fork.
 3. Mantener la salida en `timeline.subtitles` con `hold`/`word-highlight` (upstream aún lo soporta) y ofrecer «convertir a clips de texto» con su flujo.
 Esfuerzo estimado: ≈ 45–70 h (más que la opción a, menos que portar todo la opción b). Estimación mía, baja confianza.
+
+## Implementado (rama `sync/upstream-merge`, commit `8717375`)
+Panel híbrido en `inspector/AutoCaptionPanel.tsx` con la lógica en `utils/caption-sources.ts`, `utils/caption-blocks.ts`, `services/caption-pipeline.ts` y `services/caption-server.ts`. Cubierto por pruebas, incluido el clip recortado de extremo a extremo (sube 10 s en vez de 60 y el caption cae en 5,5 s, no en 15,5 s). No se ha probado con un servidor WhisperX real ni con el motor del navegador (worker).
