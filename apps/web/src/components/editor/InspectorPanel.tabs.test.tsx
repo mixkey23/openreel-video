@@ -147,4 +147,12 @@ describe("InspectorPanel (no tabs, collapsible sections by clip type)", () => {
       container.querySelector('[data-section-id="transform"]'),
     ).not.toBeNull();
   });
+
+  it("every clip gets a 'Clip Info' section (fork feature), collapsed by default", () => {
+    seedClip({ mediaId: "media-audio", trackType: "audio" });
+    const { container } = render(<InspectorPanel />);
+    const info = container.querySelector('[data-section-id="clip-info"]');
+    expect(info).not.toBeNull();
+    expect(info?.textContent).toContain("Clip Info");
+  });
 });

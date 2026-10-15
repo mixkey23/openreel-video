@@ -891,7 +891,7 @@ export const InspectorPanel: React.FC = () => {
           <InspectorTabErrorBoundary key={clipId}>
             <div className="space-y-4">
               {tabIds.includes("info") && (
-                <Section title="Clip Info" sectionId="clip-info" defaultOpen>
+                <Section title="Clip Info" sectionId="clip-info">
                   <InfoTab
                     clip={(selectedTimelineClip ?? selectedClip) as import("@openreel/core").Clip}
                     mediaItem={project.mediaLibrary.items.find((m) => m.id === selectedClip.mediaId) ?? null}
