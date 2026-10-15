@@ -1,0 +1,166 @@
+{
+ "version": "sha1:5fc87add04d28067",
+ "track_name": "Music (Framesmith)",
+ "sample_rate": 48000,
+ "clips": [
+  {
+   "cue_id": "seq_01_scene_001",
+   "scene_id": "scene_001",
+   "status": "ok",
+   "offset_in_scene_s": 0.0,
+   "scene_start_s": 0.0,
+   "duration_s": 14.667,
+   "url": "/assets/episode_035/music/seq_01_scene_001.wav?v=03d2194f",
+   "gain": 1.0,
+   "fade": {
+    "fadeIn": 0.0,
+    "fadeOut": 1.0
+   },
+   "automation_volume": [
+    {
+     "time": 0.0,
+     "value": 1.0
+    },
+    {
+     "time": 5.65,
+     "value": 1.0
+    },
+    {
+     "time": 5.8,
+     "value": 0.354813
+    },
+    {
+     "time": 13.955,
+     "value": 0.354813
+    },
+    {
+     "time": 14.355,
+     "value": 1.0
+    },
+    {
+     "time": 14.667,
+     "value": 1.0
+    }
+   ],
+   "sha256": "03d2194f9d808568fc8535495689bd5ffec167401585e79c4544511273578c43"
+  },
+  {
+   "cue_id": "seq_01_scene_002",
+   "scene_id": "scene_002",
+   "status": "ok",
+   "offset_in_scene_s": 0.0,
+   "scene_start_s": 13.667,
+   "duration_s": 11.625,
+   "url": "/assets/episode_035/music/seq_01_scene_002.wav?v=f74c2201",
+   "gain": 1.0,
+   "fade": {
+    "fadeIn": 1.0,
+    "fadeOut": 1.0
+   },
+   "automation_volume": [
+    {
+     "time": 0.0,
+     "value": 0.354813
+    },
+    {
+     "time": 0.288,
+     "value": 0.354813
+    },
+    {
+     "time": 0.688,
+     "value": 1.0
+    },
+    {
+     "time": 1.03,
+     "value": 1.0
+    },
+    {
+     "time": 1.18,
+     "value": 0.354813
+    },
+    {
+     "time": 3.195,
+     "value": 0.354813
+    },
+    {
+     "time": 3.595,
+     "value": 1.0
+    },
+    {
+     "time": 5.99,
+     "value": 1.0
+    },
+    {
+     "time": 6.14,
+     "value": 0.354813
+    },
+    {
+     "time": 7.783,
+     "value": 0.354813
+    },
+    {
+     "time": 8.183,
+     "value": 1.0
+    },
+    {
+     "time": 8.41,
+     "value": 1.0
+    },
+    {
+     "time": 8.56,
+     "value": 0.354813
+    },
+    {
+     "time": 10.469,
+     "value": 0.354813
+    },
+    {
+     "time": 10.869,
+     "value": 1.0
+    },
+    {
+     "time": 11.625,
+     "value": 1.0
+    }
+   ],
+   "sha256": "f74c2201f90919559243037913353a7c5e9a6a5fc619a7dfe487833cb1a60f3e"
+  },
+  {
+   "cue_id": "seq_01_scene_003",
+   "scene_id": "scene_003",
+   "status": "ok",
+   "offset_in_scene_s": 0.0,
+   "scene_start_s": 24.292,
+   "duration_s": 10.625,
+   "url": "/assets/episode_035/music/seq_01_scene_003.wav?v=1269e1ac",
+   "gain": 1.0,
+   "fade": {
+    "fadeIn": 1.0,
+    "fadeOut": 0.0
+   },
+   "automation_volume": [
+    {
+     "time": 0.0,
+     "value": 0.606436
+    },
+    {
+     "time": 0.244,
+     "value": 1.0
+    },
+    {
+     "time": 4.45,
+     "value": 1.0
+    },
+    {
+     "time": 4.6,
+     "value": 0.354813
+    },
+    {
+     "time": 10.625,
+     "value": 0.354813
+    }
+   ],
+   "sha256": "1269e1ac0a94a1e9074ab3a9d5a29ab6e2155bde304b1904653d7318c22c7992"
+  }
+ ]
+}
