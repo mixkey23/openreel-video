@@ -4,7 +4,7 @@
  */
 import type { Track } from "@openreel/core";
 import {
-  buildMeta, cueStart, isValidMusic, META_KEY, musicMediaName, planMusicMerge, sanitizeAutomation, sceneStarts,
+  buildMeta, cueStart, isValidMusic, META_KEY, musicMediaName, planMusicMerge, readMusicMeta, sanitizeAutomation, sceneStarts, trackNameFor, usableCues,
   type MergePlan,
 } from "./framesmith-music";
 
@@ -50,9 +50,10 @@ export async function applyFramesmithMusic(music: unknown, api: MusicStoreApi, o
   if (!isValidMusic(music)) return report;
   const fetchFile = opts.fetchFile ?? defaultFetchFile;
 
-  const findTrack = (): Track | undefined => api.getTracks().find((t) => t.type === "audio" && t.name === music.track_name);
-  let track = findTrack();
-  const plan = planMusicMerge(track, music);
+  const names = new Set(usableCues(music).map((c) => trackNameFor(c, music)));
+  const ownedTracks = () => api.getTracks().filter((t) => t.type === "audio" && (names.has(t.name) || t.clips.some((c) => readMusicMeta(c))));
+  const findTrack = (name: string): Track | undefined => api.getTracks().find((t) => t.type === "audio" && t.name === name);
+  const plan = planMusicMerge(ownedTracks(), music);
   report.conflicts = plan.conflicts;
   if (plan.conflicts.length) opts.onConflict?.(plan.conflicts);
   if (plan.unchanged) {
@@ -60,21 +61,22 @@ export async function applyFramesmithMusic(music: unknown, api: MusicStoreApi, o
     return report;
   }
 
-  if (!track) {
-    if (!plan.add.length) return report;                       // nothing to place: do not create an empty track
+  const ensureTrack = async (name: string): Promise<Track | undefined> => {
+    const existing = findTrack(name);
+    if (existing) return existing;
     const before = new Set(api.getTracks().map((t) => t.id));
     if (!(await api.addTrack("audio"))) {
-      warn("could not create the music track");
-      return report;
+      warn(`could not create the music track "${name}"`);
+      return undefined;
     }
     const created = api.getTracks().find((t) => t.type === "audio" && !before.has(t.id));
     if (!created) {
-      warn("music track not found after creation");
-      return report;
+      warn(`music track "${name}" not found after creation`);
+      return undefined;
     }
-    api.renameTrack(created.id, music.track_name);
-    track = findTrack() ?? created;
-  }
+    api.renameTrack(created.id, name);
+    return findTrack(name) ?? created;
+  };
 
   for (const id of plan.removeClipIds) {
     if (await api.removeClip(id)) report.removed++;
@@ -89,6 +91,8 @@ export async function applyFramesmithMusic(music: unknown, api: MusicStoreApi, o
         warn(`music cue ${cue.cue_id}: scene ${cue.scene_id} is not in the project, skipped`);
         continue;
       }
+      const track = await ensureTrack(trackNameFor(cue, music));
+      if (!track) throw new Error("music track unavailable");
       const file = await fetchFile(cue.url, musicMediaName(cue.cue_id));
       if (!(await api.importMedia(file))) throw new Error("importMedia failed");
       const media = api.getMediaItems();
@@ -98,7 +102,7 @@ export async function applyFramesmithMusic(music: unknown, api: MusicStoreApi, o
 
       const beforeIds = new Set(api.getTracks().flatMap((t) => t.clips.map((c) => c.id)));
       const start = cueStart(sceneStart, cue.offset_in_scene_s ?? 0);
-      if (!(await api.addClip(track!.id, item.id, start, cue.duration_s))) throw new Error("addClip failed");
+      if (!(await api.addClip(track.id, item.id, start, cue.duration_s))) throw new Error("addClip failed");
       const added = api.getTracks().flatMap((t) => t.clips).find((c) => !beforeIds.has(c.id));
       if (!added) throw new Error("clip not found after addClip");
       const ok = api.setClipAudioPlan(added.id, {

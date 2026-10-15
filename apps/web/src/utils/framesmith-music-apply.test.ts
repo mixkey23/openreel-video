@@ -75,6 +75,30 @@ describe("applyFramesmithMusic", () => {
     expect(p.media.filter((m) => m.name.startsWith("music__")).every((m) => m.originalUrl?.startsWith("/assets/ep/music/"))).toBe(true);
   });
 
+  it("per-layer delivery: one track per layer, each clip on its own named track, idempotent, and switching mode moves the clips", async () => {
+    const p = fakeProject();
+    const perLayer = (version: string): FramesmithMusic => ({
+      ...music(version, ["l_drone", "l_pulse"].flatMap((l) => ["scene_001", "scene_002"].map((sc) =>
+        cue(`${sc}__${l}`, sc, { layer_id: l, track_name: `Music (Framesmith) – ${l}` })))),
+      delivery_mode: "track_per_layer",
+    });
+    const r = await applyFramesmithMusic(perLayer("v1"), p.api, opts());
+    expect(r.added.length).toBe(4);
+    const audio = p.tracks.filter((t) => t.type === "audio");
+    expect(audio.map((t) => t.name).sort()).toEqual(["Music (Framesmith) – l_drone", "Music (Framesmith) – l_pulse"]);
+    expect(audio.every((t) => t.clips.length === 2)).toBe(true);
+    const snapshot = JSON.stringify(p.tracks);
+    expect((await applyFramesmithMusic(perLayer("v1"), p.api, opts())).unchanged).toBe(true);
+    expect(JSON.stringify(p.tracks)).toBe(snapshot);
+
+    // switch to "clips per layer and scene on a single track": the old per-layer clips go, the new ones land on one track
+    const single: FramesmithMusic = { ...music("v2", perLayer("v2").clips.map((c) => ({ ...c, track_name: "Music (Framesmith)" }))), delivery_mode: "layer_clips_single_track" };
+    const r2 = await applyFramesmithMusic(single, p.api, opts());
+    expect(r2.removed).toBe(4);
+    expect(p.musicTrack()!.clips.length).toBe(4);
+    expect(audio.filter((t) => t.name.includes("–")).every((t) => t.clips.length === 0)).toBe(true);
+  });
+
   it("does nothing for an invalid payload, and never creates an empty track", async () => {
     const p = fakeProject();
     expect((await applyFramesmithMusic(null, p.api, opts())).applied).toBe(false);

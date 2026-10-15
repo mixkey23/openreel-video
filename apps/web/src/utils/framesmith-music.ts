@@ -30,11 +30,15 @@ export interface FramesmithMusicClip {
   status?: string;
   /** Absolute scene start at plan time; only a fallback when the scene's video clip is not in the project. */
   scene_start_s?: number;
+  /** Per-layer delivery modes: the layer this clip carries and the track it belongs on (defaults to music.track_name). */
+  layer_id?: string;
+  track_name?: string;
 }
 
 export interface FramesmithMusic {
   version: string;
   track_name: string;
+  delivery_mode?: string;
   sample_rate?: number;
   clips: FramesmithMusicClip[];
 }
@@ -124,13 +128,19 @@ export interface MergePlan {
   conflicts: Array<{ cue_id: string; clipId: string; reason: "changed" | "removed" }>;
 }
 
-/** Idempotent merge rule (08 §2.2). `track` is the Framesmith-owned track as saved in the project, or undefined. */
-export function planMusicMerge(track: Pick<Track, "clips"> | undefined, music: FramesmithMusic): MergePlan {
+/** Track a cue belongs on: its own `track_name` (per-layer delivery) or the feed's single track. */
+export function trackNameFor(cue: Pick<FramesmithMusicClip, "track_name">, music: Pick<FramesmithMusic, "track_name">): string {
+  return cue.track_name || music.track_name;
+}
+
+/** Idempotent merge rule (08 §2.2). `tracks` are the Framesmith-owned tracks as saved in the project (none, one, or one per layer). */
+export function planMusicMerge(tracks: Pick<Track, "clips"> | ReadonlyArray<Pick<Track, "clips">> | undefined, music: FramesmithMusic): MergePlan {
+  const track = tracks === undefined ? [] : Array.isArray(tracks) ? tracks : [tracks as Pick<Track, "clips">];
   const wanted = usableCues(music);
-  const owned = (track?.clips ?? []).map((c) => ({ clip: c, meta: readMusicMeta(c) })).filter((x): x is { clip: Clip; meta: MusicClipMeta } => !!x.meta);
+  const owned = track.flatMap((t) => t.clips).map((c) => ({ clip: c, meta: readMusicMeta(c) })).filter((x): x is { clip: Clip; meta: MusicClipMeta } => !!x.meta);
 
   const sameSet = owned.length === wanted.length && wanted.every((w) => owned.some((o) => o.meta.cue_id === w.cue_id));
-  if (track && sameSet && owned.every((o) => o.meta.version === music.version)) {
+  if (track.length > 0 && sameSet && owned.every((o) => o.meta.version === music.version)) {
     return { unchanged: true, removeClipIds: [], add: [], conflicts: [] };
   }
 
