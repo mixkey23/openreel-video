@@ -29,7 +29,8 @@ function desktopHtmlPlugin() {
 }
 
 export default defineConfig({
-  base: isDesktop ? "./" : "/",
+  // Fork: the web build is served by Framesmith under /openreel/ (desktop keeps relative paths).
+  base: isDesktop ? "./" : "/openreel/",
   plugins: [react(), desktopHtmlPlugin(), stripFfmpegPlugin(isDesktop), pruneFontsPlugin(isDesktop)],
   assetsInclude: ["**/*.wasm"],
   resolve: {
@@ -47,7 +48,6 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/util", "@ffmpeg/core", "@ffmpeg/core-mt"],
   },
-  base: "/openreel/",
   build: {
     target: "esnext",
     rollupOptions: {
