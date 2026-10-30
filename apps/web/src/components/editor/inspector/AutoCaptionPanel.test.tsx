@@ -52,7 +52,7 @@ describe("AutoCaptionPanel (server engine)", () => {
   it("a TRIMMED clip uploads only its used span and places captions relative to the timeline", async () => {
     // 60 s file; timeline uses source 10–20 s, placed at 5 s.
     load([track("ta", [clip("a1", "m_a", "ta", 5, 10, { inPoint: 10, outPoint: 20 })])], [media("m_a", "audio")]);
-    render(<AutoCaptionPanel clipId="a1" maxWordsPerLine={5} />);
+    render(<AutoCaptionPanel clipId="a1" maxWordsPerLine={5} defaultOutputMode="overlay" />);
 
     fireEvent.click(screen.getByRole("button", { name: /generate captions/i }));
     await waitFor(() => expect(useProjectStore.getState().project.timeline.subtitles.length).toBe(1), { timeout: 4000 });
@@ -76,7 +76,7 @@ describe("AutoCaptionPanel (server engine)", () => {
       [track("ta", [clip("a1", "m_a", "ta", 0, 4), clip("a2", "m_b", "ta", 10, 4)])],
       [media("m_a", "audio"), media("m_b", "audio")],
     );
-    render(<AutoCaptionPanel maxWordsPerLine={5} />);
+    render(<AutoCaptionPanel maxWordsPerLine={5} defaultOutputMode="overlay" />);
     // no clip selected → range scope is the only one available
     fireEvent.click(screen.getByRole("button", { name: /generate captions/i }));
     await waitFor(() => expect(useProjectStore.getState().project.timeline.subtitles.length).toBe(2), { timeout: 4000 });
@@ -89,7 +89,7 @@ describe("AutoCaptionPanel (server engine)", () => {
   it("shows the server's error and adds nothing", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: "whisper-ctranslate2 not found" }), { status: 503 }));
     load([track("ta", [clip("a1", "m_a", "ta", 0, 4)])], [media("m_a", "audio")]);
-    render(<AutoCaptionPanel clipId="a1" />);
+    render(<AutoCaptionPanel clipId="a1" defaultOutputMode="overlay" />);
     fireEvent.click(screen.getByRole("button", { name: /generate captions/i }));
     await screen.findByText(/whisper-ctranslate2 not found/, undefined, { timeout: 4000 });
     expect(useProjectStore.getState().project.timeline.subtitles).toHaveLength(0);

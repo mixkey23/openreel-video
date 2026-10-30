@@ -73,6 +73,7 @@ type OutputMode = "overlay" | "text-clips";
 interface AutoCaptionPanelProps {
   clipId?: string;
   maxWordsPerLine?: number;
+  defaultOutputMode?: OutputMode;
 }
 
 interface WorkerChunk {
@@ -85,6 +86,7 @@ type WorkerState = "idle" | "loading" | "ready";
 export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
   clipId,
   maxWordsPerLine = 5,
+  defaultOutputMode = "text-clips",
 }) => {
   const project = useProjectStore((state) => state.project);
   const getMediaItem = useProjectStore((state) => state.getMediaItem);
@@ -113,7 +115,7 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
   const [holdSeconds, setHoldSeconds] = useState(0.5);
   const [animation, setAnimation] = useState<CaptionAnimationStyle>("word-highlight");
   const [selectedStyle, setSelectedStyle] = useState<string>("default");
-  const [outputMode, setOutputMode] = useState<OutputMode>("overlay");
+  const [outputMode, setOutputMode] = useState<OutputMode>(defaultOutputMode);
 
   const workerRef = useRef<Worker | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -568,7 +570,7 @@ export const AutoCaptionPanel: React.FC<AutoCaptionPanelProps> = ({
             />
           )}
           <Text type="supporting" color="secondary" className="block text-[9px] leading-relaxed">
-            The model is downloaded once from media.openreel.video and cached in this browser. Media never leaves your device.
+            The model is downloaded once from huggingface.co and cached in this browser. Media never leaves your device.
           </Text>
         </Card>
       )}

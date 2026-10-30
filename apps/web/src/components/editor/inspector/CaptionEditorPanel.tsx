@@ -170,7 +170,7 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
 
       {captions.length === 0 ? (
         <Text type="supporting" color="secondary" className="block py-3 text-center text-[10px]">
-          Import SRT/VTT or transcribe the selected clip to create editable caption text.
+          Import SRT/VTT or transcribe with Caption output set to &quot;Editable text clips&quot; (AI tab) to create editable caption text.
         </Text>
       ) : (
         <>
