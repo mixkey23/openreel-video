@@ -8,6 +8,7 @@ import {
   AudioDuckingSection,
 } from "../";
 import { VoiceOverPanel } from "../VoiceOverPanel";
+import { AudioOffsetSection } from "../AudioOffsetSection";
 import { InspectorSection } from "../shell/InspectorSection";
 import { PropertySlider } from "../shell/PropertySlider";
 
@@ -49,6 +50,11 @@ export const AudioTab: React.FC<AudioTabProps> = ({
       {showAudioEffects && (
         <InspectorSection title="Voice Over" sectionId="voice-over" defaultOpen={false}>
           <VoiceOverPanel />
+        </InspectorSection>
+      )}
+      {clipType === "audio" && clip && (
+        <InspectorSection title="Sync offset" sectionId="sync-offset" defaultOpen>
+          <AudioOffsetSection clipId={clipId} />
         </InspectorSection>
       )}
       {showAudioEffects && clip && (
