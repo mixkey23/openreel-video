@@ -108,7 +108,7 @@ export const SubtitleListPanel: React.FC = () => {
   const sorted = [...subtitles].sort((a, b) => a.startTime - b.startTime);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 overflow-y-auto">
 
       {/* ── Global Style Section ─────────────────────────────────── */}
       <div className="shrink-0 border-b border-border">
@@ -242,7 +242,7 @@ export const SubtitleListPanel: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1">
             {sorted.map((sub, index) => {
               const isSelected = selectedItems.some(
                 (item) => item.type === "subtitle" && item.id === sub.id,
